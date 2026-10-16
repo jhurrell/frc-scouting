@@ -1,0 +1,12 @@
+{
+  "season": "demo",
+  "version": 1,
+  "match": {
+    "stages": {
+      "Teleop": [{ "code": "tele_scored", "label": "Game pieces scored", "type": "counter" }]
+    }
+  },
+  "pit": {
+    "groups": []
+  }
+}
