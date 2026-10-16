@@ -49,7 +49,7 @@ A new, small, local-first scouting app that students can maintain, used for Matc
 13. As a Scout, I want to choose a match number and a Station, so that I'm recording the right robot.
 14. As a Scout, I want the team number filled in from the schedule once I've chosen the match and Station, so that I don't record the wrong team.
 15. As a Scout, I want to type the match number and team number by hand when the schedule doesn't cover the match (playoffs, practice, off-season events), so that I can still scout.
-16. As a Scout, I want the questions grouped into the sections the Season Config defines (for example Auto, Teleop and Endgame), so that I can follow the match as it happens.
+16. As a Scout, I want Match Report questions grouped by Match Stage (Pre-Match, Autonomous, Teleop, Endgame, Post-Match), so that I can follow the match as it happens.
 17. As a Scout, I want counter questions with large plus and minus buttons that never double-count, so that I can tally game pieces accurately while watching.
 18. As a Scout, I want yes/no, single choice, multiple choice, number and free text questions, so that I can record whatever the season needs.
 19. As a Scout, I want to see which required questions I still haven't answered, so that I can finish the Report quickly.
@@ -140,8 +140,9 @@ A new, small, local-first scouting app that students can maintain, used for Matc
 - Plain data, one file per version, kept in the repo. Versions are appended and never edited in place, and the app ships every version of the current season.
 - A config contains:
   - a version number
-  - a match section and a pit section, each an ordered list of named groups (for example Auto, Teleop and Endgame)
-  - questions in each group
+  - a match section organised by the five fixed Match Stages (Pre-Match, Autonomous, Teleop, Endgame, Post-Match), in that order. Every match question belongs to exactly one Match Stage, and a Stage may have no questions.
+  - a pit section, which is an ordered list of named groups chosen by the config, because Match Stages don't apply to Pit Scouting
+  - questions in each Match Stage or group
 - Each question has:
   - a stable code, used as the Sheet column header
   - a label
@@ -290,7 +291,7 @@ A new, small, local-first scouting app that students can maintain, used for Matc
 
 ## Further Notes
 
-- **Vocabulary.** Use the vocabulary in `GLOSSARY.md` throughout. In particular: Scout, not scouter; Station, not robot position; Complete, not submitted; Void, not delete; Upload, not sync.
+- **Vocabulary.** Use the vocabulary in `GLOSSARY.md` throughout. In particular: Scout, not scouter; Station, not robot position; Match Stage, not phase or period; Complete, not submitted; Void, not delete; Upload, not sync.
 - **Lessons from the existing projects:**
   - ScoutingPASS hand-edits a separate schedule, PIN list and spreadsheet template every season. This design replaces all of them with the Season Config and the Event Bundle.
   - Don't copy ScoutingPASS's committed TBA key or student roster into this repo.
