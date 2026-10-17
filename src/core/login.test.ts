@@ -1,9 +1,9 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EventBundle, SeasonConfig } from '../shared/contract';
 import { demoEventBundle } from '../dev/demoEventBundle';
 import { FakeSheetGateway } from '../gateway/fakeSheetGateway';
 import { ScoutingDb } from './db';
-import { createScoutingCore, hashPin, ScoutingError } from './scoutingCore';
+import { createScoutingCore, hashPin, newReportId, ScoutingError } from './scoutingCore';
 import { rosterEntry } from './testScouts';
 
 const config: SeasonConfig = {
@@ -17,7 +17,7 @@ const bundle: EventBundle = {
   eventKey: '2026test',
   teams: [],
   schedule: [],
-  roster: [await rosterEntry('s01', 'Ada', '4821'), await rosterEntry('s02', 'Grace', '0007')],
+  roster: [rosterEntry('s01', 'Ada', '4821'), rosterEntry('s02', 'Grace', '0007')],
   coverage: [],
 };
 
@@ -166,9 +166,35 @@ describe('Reports and the logged-in Scout', () => {
   });
 });
 
+describe('on a page that is not a secure context', () => {
+  // A phone testing against the dev server over the local network gets plain HTTP. Browsers then leave out
+  // crypto.subtle and crypto.randomUUID, and keep only crypto.getRandomValues.
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('logs in and starts a Report', async () => {
+    const core = await offlineDevice();
+    const realCrypto = globalThis.crypto;
+    vi.stubGlobal('crypto', { getRandomValues: realCrypto.getRandomValues.bind(realCrypto) });
+
+    await core.login('s01', '4821');
+    await expect(core.login('s01', '1111')).rejects.toThrow('Wrong PIN');
+    expect((await core.startMatchReport(match)).id).toMatch(/^[0-9a-f-]{36}$/);
+  });
+});
+
+describe('Report IDs', () => {
+  it('are random version 4 UUIDs', () => {
+    const ids = Array.from({ length: 100 }, newReportId);
+    for (const id of ids) expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(new Set(ids).size).toBe(100);
+  });
+});
+
 describe('the dev demo bundle', () => {
   it('has a demo Scout who logs in with PIN 0000', async () => {
     const [demo] = demoEventBundle.roster;
-    expect(await hashPin(demo.salt, '0000')).toBe(demo.pinHash);
+    expect(hashPin(demo.salt, '0000')).toBe(demo.pinHash);
   });
 });

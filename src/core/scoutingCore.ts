@@ -1,3 +1,5 @@
+import { sha256 } from '@noble/hashes/sha2.js';
+import { bytesToHex, utf8ToBytes } from '@noble/hashes/utils.js';
 import {
   PIN_PATTERN,
   pinHashText,
@@ -61,10 +63,21 @@ export interface UploadSummary {
 
 export type ScoutingCore = ReturnType<typeof createScoutingCore>;
 
+// The core avoids crypto.subtle and crypto.randomUUID: browsers only offer them on a secure page (HTTPS or
+// localhost), and a phone testing against the dev server over the local network isn't one.
+
 /** The PIN hash the script puts in the roster: lowercase hex SHA-256 of pinHashText(salt, pin). */
-export async function hashPin(salt: string, pin: string): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pinHashText(salt, pin)));
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+export function hashPin(salt: string, pin: string): string {
+  return bytesToHex(sha256(utf8ToBytes(pinHashText(salt, pin))));
+}
+
+/** A random version 4 UUID, made from crypto.getRandomValues, which works on any page. */
+export function newReportId(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40; // version 4
+  bytes[8] = (bytes[8] & 0x3f) | 0x80; // RFC 4122 variant
+  const hex = bytesToHex(bytes);
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 function isAnswered(value: Answer | undefined): boolean {
@@ -117,7 +130,7 @@ export function createScoutingCore({
   gateway,
   seasonConfigs: rawConfigs,
   now = () => new Date(),
-  newId = () => crypto.randomUUID(),
+  newId = newReportId,
 }: ScoutingCoreDeps) {
   const seasonConfigs = validateSeasonConfigs(rawConfigs);
   const latestConfig = seasonConfigs.reduce((a, b) => (b.version > a.version ? b : a));
@@ -282,7 +295,7 @@ export function createScoutingCore({
       if (!bundle) throw new ScoutingError('No Event Bundle on this device yet');
       const scout = bundle.roster.find((s) => s.scoutId === scoutId);
       if (!scout) throw new ScoutingError('Choose your name from the list');
-      if (!PIN_PATTERN.test(pin) || (await hashPin(scout.salt, pin)) !== scout.pinHash) {
+      if (!PIN_PATTERN.test(pin) || hashPin(scout.salt, pin) !== scout.pinHash) {
         throw new ScoutingError('Wrong PIN');
       }
       await db.settings.put({ key: 'scoutId', value: scout.scoutId });

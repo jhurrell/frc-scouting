@@ -56,8 +56,8 @@ describe('HttpSheetGateway against the script logic', () => {
 
     const [ada] = (await gateway.fetchEventBundle(ACCESS_CODE)).roster;
 
-    expect(await hashPin(ada.salt, '4821')).toBe(ada.pinHash);
-    expect(await hashPin(ada.salt, '4822')).not.toBe(ada.pinHash);
+    expect(hashPin(ada.salt, '4821')).toBe(ada.pinHash);
+    expect(hashPin(ada.salt, '4822')).not.toBe(ada.pinHash);
   });
 
   it('uploads Reports into the Event Sheet', async () => {
