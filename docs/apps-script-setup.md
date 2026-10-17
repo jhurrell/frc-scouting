@@ -64,6 +64,9 @@ Use a past event that TBA has a schedule for, such as `2025nyro`.
 11. **Offline:** turn off the network (on the computer running `npm run dev`, so the page still loads) and reload the app. The event and schedule are still there, and a new Match Report still fills in the team. Turn the network back on.
 12. **Refresh schedule:** in the Schedule tab, delete a few rows, then choose **Scouting → Refresh schedule**. Expect the rows back. In the app, choose **Refresh**, and expect the same number of matches as before.
 13. **Unknown event:** in the Season Sheet's Settings tab, change Current event to `2026nope`. In the app, choose **Refresh**. Expect an error saying `2026nope` isn't in the Events tab, and the app keeps its old Event Bundle. Then put the setting back.
+14. **Edit:** open an Uploaded Report, choose **Edit**, change an answer and choose **Done**. Expect it Not uploaded; upload it. The Report's row in `Match Reports` changes in place, with a later `Updated`, and no new row appears.
+15. **Void on the device:** open a Report, choose **Void** and confirm. Upload it. Its row stays, with the Void checkbox ticked.
+16. **Void in the Sheet:** in `Match Reports`, tick the Void checkbox of a Report that isn't Void. In the app, edit that Report and upload it. Expect the edit in the row, and the Void still ticked.
 
 ## Updating the script later
 
@@ -80,6 +83,6 @@ For an event TBA doesn't cover, such as a scrimmage, run **Create event…** any
 
 ## Rules for the Event Sheet
 
-- **Leave the Report tabs alone,** apart from the Void column (from ticket 07). Every Upload rewrites those tabs, which turns formulas in them into plain values and could clash with columns you add.
+- **To Void a Report,** tick its Void checkbox. No Upload ever clears it. Leave the rest of the Report tabs alone. Every Upload rewrites those tabs, which turns formulas in them into plain values and could clash with columns you add.
 - **Do analysis in other tabs** or other spreadsheets that reference the Report tabs.
 - **The Season Sheet's Settings and Events tabs** are rewritten by the menu actions too, so keep formulas out of them.

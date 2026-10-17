@@ -46,6 +46,8 @@ export interface ListedReport {
 
 export interface UploadSummary {
   stored: number;
+  /** Reports the Sheet already held a newer copy of. Nothing more to send for them. */
+  stale: number;
   rejected: { reportId: string; reason: string }[];
 }
 
@@ -131,23 +133,37 @@ export function createScoutingCore({
       .map((q) => q.code);
   }
 
-  async function loadDraft(reportId: string): Promise<Report> {
+  async function loadReport(reportId: string): Promise<Report> {
     const report = await db.reports.get(reportId);
     if (!report) throw new ScoutingError(`No Report ${reportId}`);
-    if (report.status !== 'draft') throw new ScoutingError('Only a Draft can be changed');
     return report;
   }
 
-  /** Reads, changes and writes a Draft's answers in one transaction, so rapid taps never lose or double a change. */
+  async function loadChangeable(reportId: string): Promise<Report> {
+    const report = await loadReport(reportId);
+    if (report.voided) throw new ScoutingError("A Void Report can't be changed");
+    return report;
+  }
+
+  /**
+   * Reads, changes and writes a Report's answers in one transaction, so rapid taps never lose or double a change.
+   * A Complete Report stays Complete, so a change that would leave a required question unanswered is refused.
+   * Every change gives the Report a new updated time, which puts a Complete Report back in the Upload queue.
+   */
   async function changeAnswers(
     reportId: string,
     change: (report: Report) => Record<string, Answer> | undefined,
   ): Promise<void> {
     await db.transaction('rw', db.reports, async () => {
-      const report = await loadDraft(reportId);
+      const report = await loadChangeable(reportId);
       const answers = change(report);
       if (!answers) return;
-      await db.reports.put({ ...report, answers, updatedAt: now().toISOString() });
+      const changed = { ...report, answers, updatedAt: now().toISOString() };
+      if (changed.status === 'complete') {
+        const missing = unansweredRequiredIn(changed);
+        if (missing.length > 0) throw new UnansweredRequiredError(missing);
+      }
+      await db.reports.put(changed);
     });
   }
 
@@ -294,10 +310,23 @@ export function createScoutingCore({
 
     async complete(reportId: string): Promise<void> {
       await db.transaction('rw', db.reports, async () => {
-        const report = await loadDraft(reportId);
+        const report = await loadChangeable(reportId);
+        if (report.status !== 'draft') throw new ScoutingError('This Report is already Complete');
         const missing = unansweredRequiredIn(report);
         if (missing.length > 0) throw new UnansweredRequiredError(missing);
         await db.reports.put({ ...report, status: 'complete', updatedAt: now().toISOString() });
+      });
+    },
+
+    /**
+     * Marks a Report as wrong, for example scouted on the wrong team. It is kept, and a Complete Report Uploads its
+     * Void like any other change. There is no undo: once the Sheet has the Void, no Upload can clear it.
+     */
+    async voidReport(reportId: string): Promise<void> {
+      await db.transaction('rw', db.reports, async () => {
+        const report = await loadReport(reportId);
+        if (report.voided) return;
+        await db.reports.put({ ...report, voided: true, updatedAt: now().toISOString() });
       });
     },
 
@@ -314,11 +343,11 @@ export function createScoutingCore({
     async uploadPending(): Promise<UploadSummary> {
       const accessCode = await getAccessCode();
       const pending = await pendingUploads();
-      if (pending.length === 0) return { stored: 0, rejected: [] };
+      if (pending.length === 0) return { stored: 0, stale: 0, rejected: [] };
 
       const outcomes = await gateway.upload(accessCode, pending);
       const sent = new Map(pending.map((r) => [r.id, r.updatedAt]));
-      const summary: UploadSummary = { stored: 0, rejected: [] };
+      const summary: UploadSummary = { stored: 0, stale: 0, rejected: [] };
       const stored: UploadRow[] = [];
       for (const outcome of outcomes) {
         const updatedAt = sent.get(outcome.reportId);
@@ -326,8 +355,9 @@ export function createScoutingCore({
         if (outcome.outcome === 'rejected') {
           summary.rejected.push({ reportId: outcome.reportId, reason: outcome.reason });
         } else {
+          // Stored, or stale because the Sheet already has a newer copy: either way there's nothing more to send.
           stored.push({ reportId: outcome.reportId, updatedAt });
-          summary.stored += 1;
+          summary[outcome.outcome] += 1;
         }
       }
       await db.uploads.bulkPut(stored);

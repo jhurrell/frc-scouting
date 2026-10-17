@@ -13,7 +13,7 @@ export interface FakeSheetGatewayOptions {
 
 /** In-memory Sheet gateway for tests and local development. */
 export class FakeSheetGateway implements SheetGateway {
-  /** Every Report received, by Report ID. */
+  /** The newest copy of every Report received, by Report ID. */
   readonly uploaded = new Map<string, Report>();
   /** Simulates the script being unreachable. */
   offline = false;
@@ -46,6 +46,9 @@ export class FakeSheetGateway implements SheetGateway {
     return reports.map((report): UploadOutcome => {
       const reason = this.rejections.get(report.id);
       if (reason) return { reportId: report.id, outcome: 'rejected', reason };
+      // Like the script: an older copy never overwrites a newer one.
+      const held = this.uploaded.get(report.id);
+      if (held && held.updatedAt > report.updatedAt) return { reportId: report.id, outcome: 'stale' };
       this.uploaded.set(report.id, structuredClone(report));
       return { reportId: report.id, outcome: 'stored' };
     });

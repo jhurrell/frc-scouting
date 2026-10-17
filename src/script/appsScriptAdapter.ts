@@ -8,6 +8,7 @@ import {
   eventKeyFrom,
   handleRequest,
   refreshSchedule,
+  REPORT_TABS,
   ScriptError,
   tbaKnowsEvent,
   type Cell,
@@ -35,6 +36,12 @@ function writeSheet(spreadsheet: GoogleAppsScript.Spreadsheet.Spreadsheet, tab: 
   if (table.length === 0) return;
   sheet.getRange(1, 1, table.length, table[0].length).setValues(table);
   sheet.setFrozenRows(1);
+  // In a Report tab, the Void column is checkboxes, so an Admin can Void a Report with one tick.
+  const voidColumn = table[0].indexOf('Void');
+  const isReportTab = (Object.values(REPORT_TABS) as string[]).includes(tab);
+  if (isReportTab && voidColumn !== -1 && table.length > 1) {
+    sheet.getRange(2, voidColumn + 1, table.length - 1, 1).insertCheckboxes();
+  }
 }
 
 function sheetsPort(): SpreadsheetPort {

@@ -83,7 +83,7 @@ describe('uploading', () => {
     const core = await setUpDevice();
     const id = await completeReport(core);
 
-    expect(await core.uploadPending()).toEqual({ stored: 1, rejected: [] });
+    expect(await core.uploadPending()).toEqual({ stored: 1, stale: 0, rejected: [] });
 
     expect(gateway.uploaded.get(id)).toMatchObject({ id, status: 'complete', eventKey: '2026test' });
     expect(await core.listReports()).toEqual([expect.objectContaining({ uploaded: true })]);
@@ -107,7 +107,7 @@ describe('uploading', () => {
     await core.uploadPending();
     gateway.uploaded.clear();
 
-    expect(await core.uploadPending()).toEqual({ stored: 0, rejected: [] });
+    expect(await core.uploadPending()).toEqual({ stored: 0, stale: 0, rejected: [] });
     expect(gateway.uploaded.size).toBe(0);
   });
 
@@ -119,6 +119,7 @@ describe('uploading', () => {
 
     expect(await core.uploadPending()).toEqual({
       stored: 1,
+      stale: 0,
       rejected: [{ reportId: bad, reason: 'unknown event key "2026test"' }],
     });
     expect((await core.pendingUploads()).map((r) => r.id)).toEqual([bad]);
@@ -134,7 +135,7 @@ describe('uploading', () => {
     expect((await core.pendingUploads()).map((r) => r.id)).toEqual([id]);
 
     gateway.offline = false;
-    expect(await core.uploadPending()).toEqual({ stored: 1, rejected: [] });
+    expect(await core.uploadPending()).toEqual({ stored: 1, stale: 0, rejected: [] });
   });
 
   it('refuses to upload from a device without an access code', async () => {

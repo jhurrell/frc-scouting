@@ -149,6 +149,11 @@ select {
   color: var(--accent);
 }
 
+.badge.void {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
 .question {
   display: flex;
   flex-direction: column;

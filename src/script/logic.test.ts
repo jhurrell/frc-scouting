@@ -9,6 +9,7 @@ import {
   REPORT_TABS,
   ScriptError,
   tbaKnowsEvent,
+  type Cell,
 } from './logic';
 import { MemoryPort, MemoryTba } from './memoryPort';
 
@@ -382,6 +383,14 @@ describe('uploading Reports', () => {
     expect(port.eventSheets.get(EVENT_SHEET)!.size).toBe(0);
   });
 
+  it('keeps two Scouts’ Reports on the same Station in the same match', () => {
+    upload(matchReport({ id: 'r1', scoutId: 's1' }), matchReport({ id: 'r2', scoutId: 's2', answers: { tele_scored: 4 } }));
+    expect(matchRows()).toMatchObject([
+      { 'Report ID': 'r1', Match: 12, Station: 'Blue 2', 'Scout ID': 's1', tele_scored: 3 },
+      { 'Report ID': 'r2', Match: 12, Station: 'Blue 2', 'Scout ID': 's2', tele_scored: 4 },
+    ]);
+  });
+
   it('routes each Report to its own event’s Event Sheet', () => {
     port.seasonTabs.get('Events')!.push(['2026other', 'sheet-2026other']);
     port.eventSheets.set('sheet-2026other', new Map());
@@ -390,5 +399,83 @@ describe('uploading Reports', () => {
 
     expect(matchRows().map((r) => r['Report ID'])).toEqual(['r1']);
     expect(port.rows('sheet-2026other', REPORT_TABS.match).map((r) => r['Report ID'])).toEqual(['r2']);
+  });
+});
+
+describe('corrections', () => {
+  const earlier = '2026-10-16T12:05:00.000Z';
+  const later = '2026-10-16T12:30:00.000Z';
+
+  /** An Admin edits the Void cell of a Report's row in the Event Sheet. */
+  function setVoidInSheet(reportId: string, value: Cell) {
+    const table = port.readEventTab(EVENT_SHEET, REPORT_TABS.match);
+    const [header] = table;
+    table.find((row) => row[header.indexOf('Report ID')] === reportId)![header.indexOf('Void')] = value;
+    port.writeEventTab(EVENT_SHEET, REPORT_TABS.match, table);
+  }
+
+  it('updates the same row with an edit', () => {
+    upload(matchReport({ updatedAt: earlier, answers: { tele_scored: 3 } }));
+    expect(upload(matchReport({ updatedAt: later, answers: { tele_scored: 6 } }))).toEqual([
+      { reportId: 'r1', outcome: 'stored' },
+    ]);
+
+    expect(matchRows()).toHaveLength(1);
+    expect(matchRows()[0]).toMatchObject({ tele_scored: 6, Updated: later });
+  });
+
+  it('ignores an older copy as stale', () => {
+    upload(matchReport({ updatedAt: later, answers: { tele_scored: 6 } }));
+    const before = port.readEventTab(EVENT_SHEET, REPORT_TABS.match);
+
+    expect(upload(matchReport({ updatedAt: earlier, answers: { tele_scored: 3 } }))).toEqual([
+      { reportId: 'r1', outcome: 'stale' },
+    ]);
+    expect(port.readEventTab(EVENT_SHEET, REPORT_TABS.match)).toEqual(before);
+  });
+
+  it('writes the same copy again harmlessly, so retries are safe', () => {
+    upload(matchReport());
+    expect(upload(matchReport())).toEqual([{ reportId: 'r1', outcome: 'stored' }]);
+    expect(matchRows()).toHaveLength(1);
+  });
+
+  it('applies stale and fresh copies in one batch independently', () => {
+    upload(matchReport({ id: 'r1', updatedAt: later }));
+    expect(upload(matchReport({ id: 'r1', updatedAt: earlier }), matchReport({ id: 'r2' }))).toEqual([
+      { reportId: 'r1', outcome: 'stale' },
+      { reportId: 'r2', outcome: 'stored' },
+    ]);
+  });
+
+  it('keeps a Report the device Voided, flagged', () => {
+    upload(matchReport({ updatedAt: earlier }));
+    upload(matchReport({ updatedAt: later, voided: true }));
+
+    expect(matchRows()).toMatchObject([{ 'Report ID': 'r1', Void: true, tele_scored: 3 }]);
+  });
+
+  it('never clears a Void an Admin set in the Sheet, even with a newer copy', () => {
+    upload(matchReport({ updatedAt: earlier }));
+    setVoidInSheet('r1', true);
+
+    upload(matchReport({ updatedAt: later, answers: { tele_scored: 9 } }));
+
+    expect(matchRows()[0]).toMatchObject({ Void: true, tele_scored: 9 });
+  });
+
+  it('treats a Void typed as text as set', () => {
+    upload(matchReport({ updatedAt: earlier }));
+    setVoidInSheet('r1', 'x');
+
+    upload(matchReport({ updatedAt: later }));
+
+    expect(matchRows()[0].Void).toBe(true);
+  });
+
+  it('never clears a Void a device set, even when a copy from before the Void arrives', () => {
+    upload(matchReport({ updatedAt: later, voided: true }));
+    upload(matchReport({ updatedAt: later, voided: false }));
+    expect(matchRows()[0].Void).toBe(true);
   });
 });

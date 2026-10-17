@@ -152,7 +152,7 @@ describe('counters', () => {
 });
 
 describe('completing a Match Report', () => {
-  it('marks it Complete and stops further changes', async () => {
+  it('marks it Complete', async () => {
     const core = await readyCore();
     const { id } = await core.startMatchReport(match12);
     await core.adjustCounter(id, 'tele_scored', 1);
@@ -163,7 +163,7 @@ describe('completing a Match Report', () => {
     const report = await core.getReport(id);
     expect(report?.status).toBe('complete');
     expect(report?.updatedAt).toBe('2026-10-16T12:01:00.000Z');
-    await expect(core.adjustCounter(id, 'tele_scored', 1)).rejects.toThrow(ScoutingError);
+    await expect(core.complete(id)).rejects.toThrow(ScoutingError);
   });
 
   it('is still Complete after the app restarts', async () => {

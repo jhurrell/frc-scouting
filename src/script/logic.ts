@@ -339,9 +339,9 @@ export function uploadReports(reports: unknown[], port: SpreadsheetPort, now: Da
   });
 
   for (const { sheetId, tab, items } of batches.values()) {
-    const table = upsertReports(port.readEventTab(sheetId, tab), items.map((i) => i.report), now, 'device');
-    port.writeEventTab(sheetId, tab, table);
-    for (const { index, report } of items) outcomes.set(index, { reportId: report.id, outcome: 'stored' });
+    const result = upsertReports(port.readEventTab(sheetId, tab), items.map((i) => i.report), now, 'device');
+    if (result.outcomes.includes('stored')) port.writeEventTab(sheetId, tab, result.table);
+    items.forEach(({ index, report }, i) => outcomes.set(index, { reportId: report.id, outcome: result.outcomes[i] }));
   }
 
   return reports.map((_, index) => outcomes.get(index)!);
@@ -374,11 +374,23 @@ function metadataFor(report: Report, uploadedAt: string, via: string): Record<Me
   };
 }
 
+/** A Void cell an Admin ticked or typed into. */
+function isVoidCell(cell: Cell | undefined): boolean {
+  return cell === true || cell === 1 || (typeof cell === 'string' && /^\s*(true|yes|y|x|void)\s*$/i.test(cell));
+}
+
 /**
  * Inserts or updates one row per Report, matched by Report ID.
- * Columns are only ever appended: metadata columns first, then each new question code as it first appears.
+ * - A copy older than the stored one is ignored as stale. An equal one is written again, so a retry is harmless.
+ * - A Void in the Sheet, whether an Admin set it or a device did, is never cleared.
+ * - Columns are only ever appended: metadata columns first, then each new question code as it first appears.
  */
-export function upsertReports(table: Table, reports: Report[], now: Date, via: string): Table {
+export function upsertReports(
+  table: Table,
+  reports: Report[],
+  now: Date,
+  via: string,
+): { table: Table; outcomes: ('stored' | 'stale')[] } {
   const header: Cell[] = table.length > 0 ? [...table[0]] : [];
   const rows: Cell[][] = table.slice(1).map((row) => [...row]);
 
@@ -393,22 +405,32 @@ export function upsertReports(table: Table, reports: Report[], now: Date, via: s
   for (const name of METADATA_COLUMNS) columnOf(name);
 
   const idColumn = columnOf('Report ID');
+  const updatedColumn = columnOf('Updated');
+  const voidColumn = columnOf('Void');
   const uploadedAt = now.toISOString();
+  const outcomes: ('stored' | 'stale')[] = [];
 
   for (const report of reports) {
-    for (const code of Object.keys(report.answers)) columnOf(code);
-
     let row = rows.find((r) => r[idColumn] === report.id);
+    if (row && Date.parse(String(row[updatedColumn])) > Date.parse(report.updatedAt)) {
+      outcomes.push('stale');
+      continue;
+    }
     if (!row) {
       row = [];
       rows.push(row);
     }
+    const voidInSheet = isVoidCell(row[voidColumn]);
+
+    for (const code of Object.keys(report.answers)) columnOf(code);
     for (const [name, value] of Object.entries(metadataFor(report, uploadedAt, via))) row[columnOf(name)] = value;
+    row[voidColumn] = report.voided || voidInSheet;
     // Every question-code column reflects this version of the Report, so a cleared answer clears its cell.
     header.forEach((name, i) => {
       if (typeof name === 'string' && CODE_PATTERN.test(name)) row[i] = Object.prototype.hasOwnProperty.call(report.answers, name) ? toCell(report.answers[name]) : '';
     });
+    outcomes.push('stored');
   }
 
-  return [header, ...rows].map((row) => Array.from({ length: header.length }, (_, i) => row[i] ?? ''));
+  return { table: rectangular([header, ...rows]), outcomes };
 }

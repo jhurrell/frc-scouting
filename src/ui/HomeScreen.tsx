@@ -11,8 +11,10 @@ function describeReport(report: Report): string {
 }
 
 function statusOf({ report, uploaded }: ListedReport): { text: string; className: string } {
-  if (report.status === 'draft') return { text: 'Draft', className: 'draft' };
-  return uploaded ? { text: 'Uploaded', className: 'complete' } : { text: 'Not uploaded', className: 'pending' };
+  if (report.status === 'draft') return { text: report.voided ? 'Void Draft' : 'Draft', className: report.voided ? 'void' : 'draft' };
+  const upload = uploaded ? 'Uploaded' : 'Not uploaded';
+  if (report.voided) return { text: `Void · ${upload}`, className: 'void' };
+  return uploaded ? { text: upload, className: 'complete' } : { text: upload, className: 'pending' };
 }
 
 export function HomeScreen({ core, navigate }: { core: ScoutingCore; navigate: (screen: Screen) => void }) {
@@ -39,8 +41,9 @@ export function HomeScreen({ core, navigate }: { core: ScoutingCore; navigate: (
     setBusy(true);
     setMessage(null);
     try {
-      const { stored, rejected } = await core.uploadPending();
+      const { stored, stale, rejected } = await core.uploadPending();
       const parts = [`Uploaded ${stored} Report${stored === 1 ? '' : 's'}.`];
+      if (stale > 0) parts.push(`${stale} already had a newer copy in the Sheet.`);
       for (const r of rejected) parts.push(`Not accepted (${r.reportId.slice(0, 8)}): ${r.reason}.`);
       setMessage({ text: parts.join(' '), error: rejected.length > 0 });
     } catch (e) {
