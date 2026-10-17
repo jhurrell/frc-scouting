@@ -21,7 +21,7 @@ See the spec: ADR 0001, Sheet gateway, Upload rules, Apps Script.
 - [x] Only Complete Reports are sent. Drafts never leave the device.
 - [x] The HTTP gateway and the fake gateway implement the same interface and use the shared types.
 - [x] Node tests over 2D-array tables cover: access code rejection, routing, unknown event key, insert vs update, and appending columns.
-- [ ] Manually checked against a real test Season Sheet and Event Sheet, with the steps written down so a student can repeat them.
+- [x] Manually checked against a real test Season Sheet and Event Sheet, with the steps written down so a student can repeat them.
 
 ## Comments
 
@@ -41,3 +41,5 @@ See the spec: ADR 0001, Sheet gateway, Upload rules, Apps Script.
   - **Cleared answers clear their cell.** Every question-code column is rewritten on each Upload, so a cleared answer clears its cell.
   - **Configuring the URL.** `VITE_SCRIPT_URL` in `.env.local` points the app at the script. Without it, the dev server uses the in-memory fake.
 - **Known limitation:** each Upload rewrites the whole Report tab, so formulas in that tab become values. The setup doc tells Strategists to do analysis in other tabs.
+
+**2026-10-17, manual check:** The user ran every step in `docs/apps-script-setup.md` against a real test Season Sheet and Event Sheet.
