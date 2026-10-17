@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { EventBundle, SeasonConfig } from '../shared/contract';
 import { ScoutingDb } from './db';
-import { FakeSheetGateway } from './fakeSheetGateway';
+import { FakeSheetGateway } from '../gateway/fakeSheetGateway';
 import { createScoutingCore, ScoutingError } from './scoutingCore';
 
 const config: SeasonConfig = {
@@ -35,6 +35,7 @@ function makeCore(database = db) {
 
 async function readyCore() {
   const core = makeCore();
+  await core.setAccessCode('team-code');
   await core.refreshEventBundle();
   return core;
 }
@@ -186,6 +187,6 @@ describe('listing Reports', () => {
     clock += 1000;
     await core.adjustCounter(first.id, 'tele_scored', 1);
 
-    expect((await core.listReports()).map((r) => r.id)).toEqual([first.id, second.id]);
+    expect((await core.listReports()).map((r) => r.report.id)).toEqual([first.id, second.id]);
   });
 });

@@ -118,6 +118,22 @@ export type UploadOutcome =
   | { reportId: string; outcome: 'rejected'; reason: string };
 
 export interface SheetGateway {
+  /** Throws SheetGatewayError when the request can't be made or is refused, for example for a wrong access code. */
   fetchEventBundle(accessCode: string): Promise<EventBundle>;
+  /** Returns one outcome per Report. Throws SheetGatewayError when the whole batch is refused. */
   upload(accessCode: string, reports: Report[]): Promise<UploadOutcome[]>;
 }
+
+export class SheetGatewayError extends Error {}
+
+// ---- Apps Script web app protocol ----
+// Every request is a POST whose body is a JSON ScriptRequest. The access code travels in the body, never the URL.
+
+export type ScriptRequest =
+  | { action: 'event-bundle'; accessCode: string }
+  | { action: 'upload'; accessCode: string; reports: Report[] };
+
+export type ScriptResponse =
+  | { ok: true; bundle: EventBundle }
+  | { ok: true; outcomes: UploadOutcome[] }
+  | { ok: false; error: string };

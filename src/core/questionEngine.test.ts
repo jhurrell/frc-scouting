@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { EventBundle, Question, SeasonConfig } from '../shared/contract';
 import { ScoutingDb } from './db';
-import { FakeSheetGateway } from './fakeSheetGateway';
+import { FakeSheetGateway } from '../gateway/fakeSheetGateway';
 import { createScoutingCore, ScoutingError, UnansweredRequiredError } from './scoutingCore';
 import { SeasonConfigError } from './seasonConfig';
 
@@ -35,6 +35,7 @@ function makeCore(seasonConfigs: unknown[] = [config]) {
 
 async function startReport() {
   const core = makeCore();
+  await core.setAccessCode('team-code');
   await core.refreshEventBundle();
   const { id } = await core.startMatchReport(match1);
   const answers = async () => (await core.getReport(id))!.answers;

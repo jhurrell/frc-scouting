@@ -13,12 +13,31 @@
         }
       ],
       "Autonomous": [
-        { "code": "auto_moved", "label": "Left the starting line", "type": "yes-no", "required": true },
-        { "code": "auto_scored", "label": "Game pieces scored", "type": "counter" }
+        {
+          "code": "auto_moved",
+          "label": "Left the starting line",
+          "type": "yes-no",
+          "required": true
+        },
+        {
+          "code": "auto_scored",
+          "label": "Game pieces scored",
+          "type": "counter"
+        }
       ],
       "Teleop": [
-        { "code": "tele_scored", "label": "Game pieces scored", "type": "counter" },
-        { "code": "tele_cycle", "label": "Typical cycle time (seconds)", "type": "number", "min": 0, "max": 150 }
+        {
+          "code": "tele_scored",
+          "label": "Game pieces scored",
+          "type": "counter"
+        },
+        {
+          "code": "tele_cycle",
+          "label": "Typical cycle time (seconds)",
+          "type": "number",
+          "min": 0,
+          "max": 150
+        }
       ],
       "Endgame": [
         {

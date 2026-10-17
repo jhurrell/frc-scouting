@@ -59,6 +59,21 @@ button.primary:disabled {
   opacity: 0.5;
 }
 
+button.secondary {
+  width: 100%;
+  padding: 0.8rem;
+  margin-bottom: 0.5rem;
+  border: 1px solid var(--accent);
+  border-radius: 0.5rem;
+  background: var(--bg);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+button.secondary:disabled {
+  opacity: 0.5;
+}
+
 button.link {
   border: none;
   background: none;
@@ -126,6 +141,10 @@ select {
 
 .badge.complete {
   color: var(--complete);
+}
+
+.badge.pending {
+  color: var(--accent);
 }
 
 .question {

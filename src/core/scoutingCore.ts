@@ -9,7 +9,7 @@ import {
   type SheetGateway,
   type Station,
 } from '../shared/contract';
-import type { ScoutingDb } from './db';
+import type { ScoutingDb, UploadRow } from './db';
 import { validateSeasonConfigs } from './seasonConfig';
 
 export class ScoutingError extends Error {}
@@ -34,6 +34,17 @@ export interface NewMatchReport {
   matchNumber: number;
   station: Station;
   teamNumber: number;
+}
+
+export interface ListedReport {
+  report: Report;
+  /** True when the Season Sheet holds this exact version of the Report. */
+  uploaded: boolean;
+}
+
+export interface UploadSummary {
+  stored: number;
+  rejected: { reportId: string; reason: string }[];
 }
 
 export type ScoutingCore = ReturnType<typeof createScoutingCore>;
@@ -140,16 +151,39 @@ export function createScoutingCore({
 
   async function getEventBundle(): Promise<EventBundle | undefined> {
     const row = await db.settings.get('eventBundle');
-    return row?.value;
+    return row?.value as EventBundle | undefined;
+  }
+
+  async function getAccessCode(): Promise<string> {
+    const row = await db.settings.get('accessCode');
+    if (!row) throw new ScoutingError('This device has no access code yet. An Admin needs to set it up.');
+    return row.value as string;
+  }
+
+  /** Complete Reports the Season Sheet doesn't hold in their current version. Drafts never leave the device. */
+  async function pendingUploads(): Promise<Report[]> {
+    const complete = await db.reports.where('status').equals('complete').toArray();
+    const uploads = new Map((await db.uploads.toArray()).map((u) => [u.reportId, u.updatedAt]));
+    return complete.filter((r) => uploads.get(r.id) !== r.updatedAt);
   }
 
   return {
     latestConfig,
     seasonConfigFor,
 
+    /** Device setup: stores the team access code on this device only. */
+    async setAccessCode(accessCode: string): Promise<void> {
+      const code = accessCode.trim();
+      if (code === '') throw new ScoutingError('Enter the access code');
+      await db.settings.put({ key: 'accessCode', value: code });
+    },
+
+    async hasAccessCode(): Promise<boolean> {
+      return (await db.settings.get('accessCode')) !== undefined;
+    },
+
     async refreshEventBundle(): Promise<EventBundle> {
-      // The access code arrives with device setup (ticket 03).
-      const bundle = await gateway.fetchEventBundle('');
+      const bundle = await gateway.fetchEventBundle(await getAccessCode());
       await db.settings.put({ key: 'eventBundle', value: bundle });
       return bundle;
     },
@@ -252,9 +286,40 @@ export function createScoutingCore({
       return db.reports.get(reportId);
     },
 
+    pendingUploads,
+
+    /**
+     * Sends every pending Report to the Season Sheet in one batch. Reports the script stores are marked Uploaded;
+     * rejected ones stay pending. Throws SheetGatewayError if the whole batch fails, leaving everything pending.
+     */
+    async uploadPending(): Promise<UploadSummary> {
+      const accessCode = await getAccessCode();
+      const pending = await pendingUploads();
+      if (pending.length === 0) return { stored: 0, rejected: [] };
+
+      const outcomes = await gateway.upload(accessCode, pending);
+      const sent = new Map(pending.map((r) => [r.id, r.updatedAt]));
+      const summary: UploadSummary = { stored: 0, rejected: [] };
+      const stored: UploadRow[] = [];
+      for (const outcome of outcomes) {
+        const updatedAt = sent.get(outcome.reportId);
+        if (updatedAt === undefined) continue;
+        if (outcome.outcome === 'rejected') {
+          summary.rejected.push({ reportId: outcome.reportId, reason: outcome.reason });
+        } else {
+          stored.push({ reportId: outcome.reportId, updatedAt });
+          summary.stored += 1;
+        }
+      }
+      await db.uploads.bulkPut(stored);
+      return summary;
+    },
+
     /** This device's Reports, newest first. */
-    async listReports(): Promise<Report[]> {
-      return (await db.reports.orderBy('updatedAt').reverse().toArray()) as Report[];
+    async listReports(): Promise<ListedReport[]> {
+      const reports = await db.reports.orderBy('updatedAt').reverse().toArray();
+      const uploads = new Map((await db.uploads.toArray()).map((u) => [u.reportId, u.updatedAt]));
+      return reports.map((report) => ({ report, uploaded: uploads.get(report.id) === report.updatedAt }));
     },
   };
 }
