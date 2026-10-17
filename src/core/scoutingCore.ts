@@ -413,13 +413,23 @@ export function createScoutingCore({
       return summary;
     },
 
-    /** The logged-in Scout's Reports on this device, newest first. Empty when nobody is logged in. */
-    async listReports(): Promise<ListedReport[]> {
-      const scout = await currentScout();
-      if (!scout) return [];
-      const reports = (await db.reports.orderBy('updatedAt').reverse().toArray()).filter((r) => r.scoutId === scout.scoutId);
-      const uploads = new Map((await db.uploads.toArray()).map((u) => [u.reportId, u.updatedAt]));
-      return reports.map((report) => ({ report, uploaded: uploads.get(report.id) === report.updatedAt }));
+    /**
+     * The logged-in Scout's Reports on this device, newest first. Empty when nobody is logged in.
+     *
+     * The home screen watches this with a Dexie live query. Outside a transaction, Dexie stops noticing reads made
+     * after awaiting a helper that itself awaits another helper (currentScout here), so the list never refreshed
+     * on Upload. The read transaction keeps every read visible to the live query.
+     */
+    listReports(): Promise<ListedReport[]> {
+      return db.transaction('r', db.reports, db.settings, db.uploads, async () => {
+        const scout = await currentScout();
+        if (!scout) return [];
+        const reports = (await db.reports.orderBy('updatedAt').reverse().toArray()).filter(
+          (r) => r.scoutId === scout.scoutId,
+        );
+        const uploads = new Map((await db.uploads.toArray()).map((u) => [u.reportId, u.updatedAt]));
+        return reports.map((report) => ({ report, uploaded: uploads.get(report.id) === report.updatedAt }));
+      });
     },
   };
 }
