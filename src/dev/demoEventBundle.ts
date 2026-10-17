@@ -13,6 +13,14 @@ export const demoEventBundle: EventBundle = {
   eventKey: '2026demo',
   teams,
   schedule,
-  roster: [],
+  // A made-up Scout, never a student. PIN 0000.
+  roster: [
+    {
+      scoutId: 'demo',
+      name: 'Demo Scout',
+      salt: 'demo-salt',
+      pinHash: '3f6b8d13440d8ab1f6ef52e03ba73fc47b4168cb702f95fe7844e588c3098032',
+    },
+  ],
   coverage: [],
 };

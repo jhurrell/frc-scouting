@@ -1,4 +1,6 @@
-import type { SpreadsheetPort, Table, TbaPort } from './logic';
+/// <reference types="node" />
+import { createHash } from 'node:crypto';
+import type { ScriptCrypto, SpreadsheetPort, Table, TbaPort } from './logic';
 
 /** Season and Event Sheets held in memory, for tests. */
 export class MemoryPort implements SpreadsheetPort {
@@ -51,5 +53,18 @@ export class MemoryTba implements TbaPort {
   get(path: string): unknown {
     this.requested.push(path);
     return structuredClone(this.responses.get(path) ?? null);
+  }
+}
+
+/** Real SHA-256 from Node, with predictable salts (salt-1, salt-2, …) for tests. */
+export class NodeCrypto implements ScriptCrypto {
+  private salts = 0;
+
+  sha256Hex(text: string): string {
+    return createHash('sha256').update(text, 'utf8').digest('hex');
+  }
+
+  newSalt(): string {
+    return `salt-${++this.salts}`;
   }
 }

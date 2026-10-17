@@ -3,6 +3,7 @@ import { SheetGatewayError, type EventBundle, type SeasonConfig } from '../share
 import { FakeSheetGateway } from '../gateway/fakeSheetGateway';
 import { ScoutingDb } from './db';
 import { createScoutingCore, ScoutingError } from './scoutingCore';
+import { TEST_SCOUT, testRoster } from './testScouts';
 
 const config: SeasonConfig = {
   season: 'test',
@@ -24,7 +25,7 @@ const nyro: EventBundle = {
       stations: { 'Red 1': 578, 'Red 2': 1511, 'Red 3': 3015, 'Blue 1': 340, 'Blue 2': 174, 'Blue 3': 191 },
     },
   ],
-  roster: [],
+  roster: testRoster,
   coverage: [],
 };
 
@@ -40,6 +41,7 @@ async function setUpDevice() {
   const core = makeCore();
   await core.setAccessCode('team-code');
   await core.refreshEventBundle();
+  await core.login(TEST_SCOUT.scoutId, TEST_SCOUT.pin);
   return core;
 }
 

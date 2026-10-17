@@ -4,6 +4,7 @@ import { ScoutingDb } from './db';
 import { FakeSheetGateway } from '../gateway/fakeSheetGateway';
 import { createScoutingCore, ScoutingError, UnansweredRequiredError } from './scoutingCore';
 import { SeasonConfigError } from './seasonConfig';
+import { TEST_SCOUT, testRoster } from './testScouts';
 
 const config: SeasonConfig = {
   season: 'test',
@@ -23,7 +24,7 @@ const config: SeasonConfig = {
   pit: { groups: [] },
 };
 
-const bundle: EventBundle = { eventKey: '2026test', teams: [578], schedule: [], roster: [], coverage: [] };
+const bundle: EventBundle = { eventKey: '2026test', teams: [578], schedule: [], roster: testRoster, coverage: [] };
 const match1 = { matchNumber: 1, station: 'Blue 2', teamNumber: 578 } as const;
 
 let dbName: string;
@@ -37,6 +38,7 @@ async function startReport() {
   const core = makeCore();
   await core.setAccessCode('team-code');
   await core.refreshEventBundle();
+  await core.login(TEST_SCOUT.scoutId, TEST_SCOUT.pin);
   const { id } = await core.startMatchReport(match1);
   const answers = async () => (await core.getReport(id))!.answers;
   return { core, id, answers };

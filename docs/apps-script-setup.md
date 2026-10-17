@@ -12,7 +12,7 @@ This writes one file, `dist-script/Code.js`.
 
 ## 2. Make a test Season Sheet
 
-In Google Sheets, create a spreadsheet called `Scouting Season (test)`, ideally in its own folder. This is the **Season Sheet**. Leave it empty: the script adds the `Settings` and `Events` tabs, and creates each Event Sheet in the same folder.
+In Google Sheets, create a spreadsheet called `Scouting Season (test)`, ideally in its own folder. This is the **Season Sheet**. Leave it empty: the script adds the `Settings`, `Scouts` and `Events` tabs, and creates each Event Sheet in the same folder.
 
 ## 3. Install the script
 
@@ -50,27 +50,43 @@ Then run `npm run dev`. Without `VITE_SCRIPT_URL`, the dev server uses an in-mem
 Use a past event that TBA has a schedule for, such as `2025nyro`.
 
 1. **Create event:** choose **Scouting → Create event…** and enter the event key. The first time, Google asks for permission to manage spreadsheets, Drive files and external requests. Expect a message with the number of teams and qualification matches. Then check:
-   - The Season Sheet has a `Settings` tab with Current event set to the key, and an `Events` tab with the key and an Event Sheet ID.
+   - The Season Sheet has a `Settings` tab with Current event set to the key, an empty `Scouts` tab, and an `Events` tab with the key and an Event Sheet ID.
    - A spreadsheet `Scouting <event key>` is in the same folder, with a `Schedule` tab (Match, then Red 1 to Blue 3, qualification matches only) and a `Teams` tab.
 2. **Create it again:** run **Create event…** with the same key. Expect "already had an Event Sheet, so it was reused", and no second spreadsheet.
 3. **Typo:** run **Create event…** with a key TBA doesn't know, such as `2025nyrx`. Expect a warning; choose **No**, and nothing changes.
-4. **Wrong access code:** on the app's Device setup screen, enter a wrong code. Expect "Wrong access code".
-5. **Right access code:** enter the code from step 3. Expect the home screen to show the event key and its number of qualification matches.
-6. **Team filled in:** choose **New Match Report**, enter match 1 and pick a Station. Each Station shows its team number, and the chosen team appears as "from the schedule". Compare it with the Schedule tab.
-7. **Manual entry:** enter a match number past the end of the schedule, such as 200. Expect a note that the match isn't in the schedule, and a team number field.
-8. **First Upload:** answer the required questions, choose Complete, then **Upload now**. Expect "Uploaded 1 Report" and the Report marked Uploaded. In the Event Sheet, the `Match Reports` tab should have the metadata columns, then one column per question code, and one row for the Report.
-9. **Nothing to resend:** **Upload now** is disabled while 0 Reports are waiting.
-10. **Second Report:** complete another Match Report and upload it. Expect a second row, with no duplicate of the first.
-11. **Offline:** turn off the network (on the computer running `npm run dev`, so the page still loads) and reload the app. The event and schedule are still there, and a new Match Report still fills in the team. Turn the network back on.
-12. **Refresh schedule:** in the Schedule tab, delete a few rows, then choose **Scouting → Refresh schedule**. Expect the rows back. In the app, choose **Refresh**, and expect the same number of matches as before.
-13. **Unknown event:** in the Season Sheet's Settings tab, change Current event to `2026nope`. In the app, choose **Refresh**. Expect an error saying `2026nope` isn't in the Events tab, and the app keeps its old Event Bundle. Then put the setting back.
-14. **Edit:** open an Uploaded Report, choose **Edit**, change an answer and choose **Done**. Expect it Not uploaded; upload it. The Report's row in `Match Reports` changes in place, with a later `Updated`, and no new row appears.
-15. **Void on the device:** open a Report, choose **Void** and confirm. Upload it. Its row stays, with the Void checkbox ticked.
-16. **Void in the Sheet:** in `Match Reports`, tick the Void checkbox of a Report that isn't Void. In the app, edit that Report and upload it. Expect the edit in the row, and the Void still ticked.
+4. **Scouts:** in the new `Scouts` tab, add two made-up test Scouts (never real students in a test sheet you share), for example `t1`, `Test Scout One`, `0123` and `t2`, `Test Scout Two`, `4567`.
+5. **Wrong access code:** on the app's Device setup screen, enter a wrong code. Expect "Wrong access code".
+6. **Right access code:** enter the `ACCESS_CODE` from section 3. Expect the Log in screen, with the event key and both test Scouts.
+7. **Log in:** choose `Test Scout One` and enter a wrong PIN. Expect "Wrong PIN". Enter `0123`. Expect the home screen, showing "Logged in as Test Scout One" and the number of qualification matches.
+8. **Team filled in:** choose **New Match Report**, enter match 1 and pick a Station. Each Station shows its team number, and the chosen team appears as "from the schedule". Compare it with the Schedule tab.
+9. **Manual entry:** enter a match number past the end of the schedule, such as 200. Expect a note that the match isn't in the schedule, and a team number field.
+10. **First Upload:** answer the required questions, choose Complete, then **Upload now**. Expect "Uploaded 1 Report" and the Report marked Uploaded. In the Event Sheet, the `Match Reports` tab should have the metadata columns, then one column per question code, and one row for the Report, with `t1` as Scout ID and `Test Scout One` as Scout.
+11. **Nothing to resend:** **Upload now** is disabled while 0 Reports are waiting.
+12. **Second Report:** complete another Match Report and upload it. Expect a second row, with no duplicate of the first.
+13. **Offline:** turn off the network (on the computer running `npm run dev`, so the page still loads) and reload the app. The event and schedule are still there, and a new Match Report still fills in the team. Log out and log back in with `0123`: the PIN is checked on the device. Turn the network back on.
+14. **Refresh schedule:** in the Schedule tab, delete a few rows, then choose **Scouting → Refresh schedule**. Expect the rows back. In the app, choose **Refresh**, and expect the same number of matches as before.
+15. **Unknown event:** in the Season Sheet's Settings tab, change Current event to `2026nope`. In the app, choose **Refresh**. Expect an error saying `2026nope` isn't in the Events tab, and the app keeps its old Event Bundle. Then put the setting back.
+16. **Edit:** open an Uploaded Report, choose **Edit**, change an answer and choose **Done**. Expect it Not uploaded; upload it. The Report's row in `Match Reports` changes in place, with a later `Updated`, and no new row appears.
+17. **Void on the device:** open a Report, choose **Void** and confirm. Upload it. Its row stays, with the Void checkbox ticked.
+18. **Void in the Sheet:** in `Match Reports`, tick the Void checkbox of a Report that isn't Void. In the app, edit that Report and upload it. Expect the edit in the row, and the Void still ticked.
+19. **Shared device:** log out. Expect the Log in screen. Log in as `Test Scout Two` with `0123` (the other Scout's PIN); expect "Wrong PIN". Log in with `4567`. The home screen lists only Test Scout Two's Reports, and a new Report Uploads with `t2`.
+20. **Stays logged in:** reload the page. Expect to still be logged in.
+21. **Roster problems:** in the Scouts tab, change a PIN to `12`. In the app, choose **Refresh**. Expect an error naming the Scouts tab row, and the app keeps working with its old Event Bundle. Put the PIN back.
 
 ## Updating the script later
 
 Rebuild, paste the new `Code.js`, then choose **Deploy → Manage deployments**, edit the existing deployment, set **Version** to **New version** and deploy. The URL stays the same, so devices keep working. If the new version needs new permissions, Google asks you to authorize again.
+
+## Managing Scouts
+
+The Season Sheet's `Scouts` tab has one row per Scout: `Scout ID`, `Name` and `PIN`.
+
+- **Scout ID:** short and never reused, such as `s01`. It goes on every Report the Scout makes, so don't change it during a season.
+- **PIN:** four digits. Sheets drops a leading zero from a number like `0123`, but the script puts it back.
+- **Changes reach devices on their next Refresh.** A Scout taken off the tab is logged out of every device after its next Refresh.
+- If a row has a problem, such as a three-digit PIN or a Scout ID used twice, devices can't download the Event Bundle until it's fixed. They keep working with the bundle they already have.
+
+The Season Sheet holds every PIN in plain text. Share it only with Admins.
 
 ## Typing a schedule by hand
 

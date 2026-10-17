@@ -11,7 +11,7 @@ import {
   tbaKnowsEvent,
   type Cell,
 } from './logic';
-import { MemoryPort, MemoryTba } from './memoryPort';
+import { MemoryPort, MemoryTba, NodeCrypto } from './memoryPort';
 
 const ACCESS_CODE = 'team-code';
 const NOW = new Date('2026-10-16T13:00:00Z');
@@ -19,8 +19,8 @@ const EVENT_SHEET = 'sheet-2026test';
 
 let port: MemoryPort;
 
-function send(body: unknown, secrets = { accessCode: ACCESS_CODE as string | null }): ScriptResponse {
-  return handleRequest(typeof body === 'string' ? body : JSON.stringify(body), port, secrets, NOW);
+function send(body: unknown, accessCode: string | null = ACCESS_CODE): ScriptResponse {
+  return handleRequest(typeof body === 'string' ? body : JSON.stringify(body), port, { accessCode, now: NOW, crypto: new NodeCrypto() });
 }
 
 function upload(...reports: unknown[]) {
@@ -79,7 +79,7 @@ describe('access', () => {
   });
 
   it('refuses everything until an Admin sets the ACCESS_CODE property', () => {
-    const response = send({ action: 'upload', accessCode: '', reports: [] }, { accessCode: null });
+    const response = send({ action: 'upload', accessCode: '', reports: [] }, null);
     expect(response).toMatchObject({ ok: false, error: expect.stringContaining('ACCESS_CODE') });
   });
 
@@ -149,6 +149,67 @@ describe('Event Bundle', () => {
   });
 });
 
+describe('roster', () => {
+  const sha256 = (text: string) => new NodeCrypto().sha256Hex(text);
+
+  function setScouts(...rows: Cell[][]) {
+    port.seasonTabs.set('Scouts', [['Scout ID', 'Name', 'PIN'], ...rows]);
+  }
+
+  it('carries each Scout with a salted hash of their PIN, never the PIN', () => {
+    setScouts(['s01', 'Ada', '4821'], ['s02', 'Grace', '0007']);
+
+    const { roster } = bundle();
+
+    expect(roster).toEqual([
+      { scoutId: 's01', name: 'Ada', salt: 'salt-1', pinHash: sha256('salt-1:4821') },
+      { scoutId: 's02', name: 'Grace', salt: 'salt-2', pinHash: sha256('salt-2:0007') },
+    ]);
+    expect(JSON.stringify(roster)).not.toMatch(/4821|0007/);
+  });
+
+  it('puts back the leading zeros Sheets drops from a PIN typed as a number', () => {
+    setScouts(['s01', 'Ada', 7]);
+    expect(bundle().roster[0].pinHash).toBe(sha256('salt-1:0007'));
+  });
+
+  it('skips blank rows and has an empty roster without a Scouts tab', () => {
+    expect(bundle().roster).toEqual([]);
+    setScouts(['', '', ''], ['s01', 'Ada', '4821']);
+    expect(bundle().roster.map((s) => s.scoutId)).toEqual(['s01']);
+  });
+
+  it.each([
+    [['s01', 'Ada', '482'], 'row 2: the PIN must be four digits'],
+    [['s01', 'Ada', 'abcd'], 'row 2: the PIN must be four digits'],
+    [['s01', '', '4821'], 'row 2: Name is missing'],
+    [['', 'Ada', '4821'], 'row 2: Scout ID is missing'],
+  ])('refuses the bundle, naming the row, for a Scouts row like %j', (row, error) => {
+    setScouts(row);
+    expect(send({ action: 'event-bundle', accessCode: ACCESS_CODE })).toMatchObject({
+      ok: false,
+      error: expect.stringContaining(error),
+    });
+  });
+
+  it('refuses a Scout ID used twice', () => {
+    setScouts(['s01', 'Ada', '4821'], ['s01', 'Grace', '1111']);
+    expect(send({ action: 'event-bundle', accessCode: ACCESS_CODE })).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('row 3: Scout ID s01 is used twice'),
+    });
+  });
+
+  it('fills in the Scout column from the roster when a Report is Uploaded', () => {
+    setScouts(['s01', 'Ada', '4821']);
+    upload(matchReport({ id: 'r1', scoutId: 's01' }), matchReport({ id: 'r2', scoutId: 's99' }));
+    expect(matchRows()).toMatchObject([
+      { 'Scout ID': 's01', Scout: 'Ada' },
+      { 'Scout ID': 's99', Scout: '' },
+    ]);
+  });
+});
+
 describe('Admin menu', () => {
   const tbaMatch = (level: string, number: number, red: string[], blue: string[]) => ({
     key: `2026nyro_${level}${number}`,
@@ -185,6 +246,7 @@ describe('Admin menu', () => {
       ['Setting', 'Value'],
       ['Current event', '2026nyro'],
     ]);
+    expect(port.readSeasonTab('Scouts')).toEqual([['Scout ID', 'Name', 'PIN']]);
     expect(port.readEventTab('sheet-1', EVENT_TABS.teams)).toEqual([['Team'], [174], [191], [340], [578], [1511], [3015]]);
     expect(message).toContain('Fetched 6 teams');
     expect(message).toContain('Fetched 2 qualification matches');
@@ -234,6 +296,12 @@ describe('Admin menu', () => {
       ['2026old', 'sheet-old'],
       ['2026nyro', 'sheet-1'],
     ]);
+  });
+
+  it('leaves an existing Scouts tab alone', () => {
+    port.seasonTabs.set('Scouts', [['Scout ID', 'Name', 'PIN'], ['s01', 'Ada', '4821']]);
+    createEvent('2026nyro', port, tba);
+    expect(port.readSeasonTab('Scouts')).toHaveLength(2);
   });
 
   it('reuses the Event Sheet when the event already exists', () => {

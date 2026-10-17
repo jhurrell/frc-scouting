@@ -217,13 +217,15 @@ textarea {
   font-variant-numeric: tabular-nums;
 }
 
-fieldset.stations {
+fieldset.stations,
+fieldset.roster {
   margin: 0;
   padding: 0;
   border: none;
 }
 
-fieldset.stations legend {
+fieldset.stations legend,
+fieldset.roster legend {
   padding: 0;
   margin-bottom: 0.25rem;
 }

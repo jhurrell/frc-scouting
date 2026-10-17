@@ -3,6 +3,7 @@ import type { EventBundle, SeasonConfig } from '../shared/contract';
 import { FakeSheetGateway } from '../gateway/fakeSheetGateway';
 import { ScoutingDb } from './db';
 import { createScoutingCore, ScoutingError, UnansweredRequiredError } from './scoutingCore';
+import { TEST_SCOUT, testRoster } from './testScouts';
 
 const config: SeasonConfig = {
   season: 'test',
@@ -18,7 +19,7 @@ const config: SeasonConfig = {
   },
   pit: { groups: [] },
 };
-const bundle: EventBundle = { eventKey: '2026test', teams: [], schedule: [], roster: [], coverage: [] };
+const bundle: EventBundle = { eventKey: '2026test', teams: [], schedule: [], roster: testRoster, coverage: [] };
 
 let dbName: string;
 let db: ScoutingDb;
@@ -29,6 +30,7 @@ async function setUpDevice() {
   const core = createScoutingCore({ db, gateway, seasonConfigs: [config], now: () => new Date(clock) });
   await core.setAccessCode('team-code');
   await core.refreshEventBundle();
+  await core.login(TEST_SCOUT.scoutId, TEST_SCOUT.pin);
   return core;
 }
 

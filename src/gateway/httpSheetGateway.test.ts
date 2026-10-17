@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { SheetGatewayError, type MatchReport } from '../shared/contract';
+import { hashPin } from '../core/scoutingCore';
 import { handleRequest } from '../script/logic';
-import { MemoryPort } from '../script/memoryPort';
+import { MemoryPort, NodeCrypto } from '../script/memoryPort';
 import { HttpSheetGateway } from './httpSheetGateway';
 
 // A contract test: the app's HTTP client talking to the real script logic, with only the network and
@@ -12,7 +13,8 @@ const ACCESS_CODE = 'team-code';
 function scriptBehindFetch(port: MemoryPort): typeof fetch {
   return async (_url, init) => {
     expect(init?.method).toBe('POST');
-    const body = handleRequest(String(init?.body), port, { accessCode: ACCESS_CODE }, new Date('2026-10-16T13:00:00Z'));
+    const env = { accessCode: ACCESS_CODE, now: new Date('2026-10-16T13:00:00Z'), crypto: new NodeCrypto() };
+    const body = handleRequest(String(init?.body), port, env);
     return new Response(JSON.stringify(body), { headers: { 'Content-Type': 'application/json' } });
   };
 }
@@ -45,6 +47,17 @@ describe('HttpSheetGateway against the script logic', () => {
   it('downloads the Event Bundle', async () => {
     const gateway = new HttpSheetGateway('https://script.example/exec', scriptBehindFetch(seasonSheet()));
     expect((await gateway.fetchEventBundle(ACCESS_CODE)).eventKey).toBe('2026test');
+  });
+
+  it('carries a roster whose PIN hashes the device can check', async () => {
+    const port = seasonSheet();
+    port.seasonTabs.set('Scouts', [['Scout ID', 'Name', 'PIN'], ['s01', 'Ada', '4821']]);
+    const gateway = new HttpSheetGateway('https://script.example/exec', scriptBehindFetch(port));
+
+    const [ada] = (await gateway.fetchEventBundle(ACCESS_CODE)).roster;
+
+    expect(await hashPin(ada.salt, '4821')).toBe(ada.pinHash);
+    expect(await hashPin(ada.salt, '4822')).not.toBe(ada.pinHash);
   });
 
   it('uploads Reports into the Event Sheet', async () => {

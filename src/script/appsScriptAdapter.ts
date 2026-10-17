@@ -12,6 +12,7 @@ import {
   ScriptError,
   tbaKnowsEvent,
   type Cell,
+  type ScriptCrypto,
   type SpreadsheetPort,
   type Table,
   type TbaPort,
@@ -76,6 +77,14 @@ function tbaPort(): TbaPort {
   };
 }
 
+const appsScriptCrypto: ScriptCrypto = {
+  sha256Hex: (text) =>
+    Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, text, Utilities.Charset.UTF_8)
+      .map((byte) => ((byte + 256) % 256).toString(16).padStart(2, '0'))
+      .join(''),
+  newSalt: () => Utilities.getUuid(),
+};
+
 function json(body: unknown): GoogleAppsScript.Content.TextOutput {
   return ContentService.createTextOutput(JSON.stringify(body)).setMimeType(ContentService.MimeType.JSON);
 }
@@ -96,8 +105,12 @@ export function doPost(e: GoogleAppsScript.Events.DoPost): GoogleAppsScript.Cont
     () => json({ ok: false, error: 'The Season Sheet is busy. Try again in a moment.' }),
     () => {
       try {
-        const secrets = { accessCode: PropertiesService.getScriptProperties().getProperty('ACCESS_CODE') };
-        return json(handleRequest(e.postData?.contents ?? '', sheetsPort(), secrets, new Date()));
+        const env = {
+          accessCode: PropertiesService.getScriptProperties().getProperty('ACCESS_CODE'),
+          now: new Date(),
+          crypto: appsScriptCrypto,
+        };
+        return json(handleRequest(e.postData?.contents ?? '', sheetsPort(), env));
       } catch (error) {
         return json({ ok: false, error: `The script failed: ${error instanceof Error ? error.message : String(error)}` });
       }

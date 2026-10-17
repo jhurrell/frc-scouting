@@ -52,7 +52,7 @@ interface ReportBase {
   /** Generated on the device when the Report is created. */
   id: string;
   eventKey: string;
-  /** The logged-in Scout. Null until login exists (ticket 05). */
+  /** The Scout who created the Report. Null only for Reports made before login existed. */
   scoutId: string | null;
   configVersion: number;
   status: ReportStatus;
@@ -89,9 +89,17 @@ export interface ScheduledMatch {
 export interface RosterEntry {
   scoutId: string;
   name: string;
-  /** Salted SHA-256 of the Scout's PIN. Never the PIN itself. */
+  /** Salted SHA-256 of the Scout's PIN, as lowercase hex of pinHashText(salt, pin). Never the PIN itself. */
   pinHash: string;
   salt: string;
+}
+
+/** A PIN is four digits. */
+export const PIN_PATTERN = /^\d{4}$/;
+
+/** The text whose SHA-256 is a Scout's PIN hash. The script and the device must agree on it exactly. */
+export function pinHashText(salt: string, pin: string): string {
+  return `${salt}:${pin}`;
 }
 
 export interface CoverageEntry {

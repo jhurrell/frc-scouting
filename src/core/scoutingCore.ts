@@ -1,11 +1,14 @@
 import {
   MATCH_STAGES,
+  PIN_PATTERN,
+  pinHashText,
   type Answer,
   type EventBundle,
   type MatchReport,
   type Question,
   type ScheduledMatch,
   type Report,
+  type RosterEntry,
   type SeasonConfig,
   type SheetGateway,
   type Station,
@@ -52,6 +55,12 @@ export interface UploadSummary {
 }
 
 export type ScoutingCore = ReturnType<typeof createScoutingCore>;
+
+/** The PIN hash the script puts in the roster: lowercase hex SHA-256 of pinHashText(salt, pin). */
+export async function hashPin(salt: string, pin: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pinHashText(salt, pin)));
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
 
 function isAnswered(value: Answer | undefined): boolean {
   if (value === undefined) return false;
@@ -139,8 +148,28 @@ export function createScoutingCore({
     return report;
   }
 
+  /** The logged-in Scout, or undefined. A Scout who has left the roster counts as logged out. */
+  async function currentScout(): Promise<RosterEntry | undefined> {
+    const row = await db.settings.get('scoutId');
+    if (!row) return undefined;
+    return (await getEventBundle())?.roster.find((s) => s.scoutId === row.value);
+  }
+
+  async function requireScout(): Promise<RosterEntry> {
+    const scout = await currentScout();
+    if (!scout) throw new ScoutingError('Log in first');
+    return scout;
+  }
+
+  /** A Report the logged-in Scout may change: their own, and not Void. */
+  async function loadOwn(reportId: string): Promise<Report> {
+    const [report, scout] = await Promise.all([loadReport(reportId), requireScout()]);
+    if (report.scoutId !== scout.scoutId) throw new ScoutingError('Only the Scout who made a Report can change it');
+    return report;
+  }
+
   async function loadChangeable(reportId: string): Promise<Report> {
-    const report = await loadReport(reportId);
+    const report = await loadOwn(reportId);
     if (report.voided) throw new ScoutingError("A Void Report can't be changed");
     return report;
   }
@@ -154,7 +183,7 @@ export function createScoutingCore({
     reportId: string,
     change: (report: Report) => Record<string, Answer> | undefined,
   ): Promise<void> {
-    await db.transaction('rw', db.reports, async () => {
+    await db.transaction('rw', db.reports, db.settings, async () => {
       const report = await loadChangeable(reportId);
       const answers = change(report);
       if (!answers) return;
@@ -208,6 +237,25 @@ export function createScoutingCore({
 
     getEventBundle,
 
+    currentScout,
+
+    /** Checks the PIN against the roster on this device, so it works offline. The login lasts until logout. */
+    async login(scoutId: string, pin: string): Promise<RosterEntry> {
+      const bundle = await getEventBundle();
+      if (!bundle) throw new ScoutingError('No Event Bundle on this device yet');
+      const scout = bundle.roster.find((s) => s.scoutId === scoutId);
+      if (!scout) throw new ScoutingError('Choose your name from the list');
+      if (!PIN_PATTERN.test(pin) || (await hashPin(scout.salt, pin)) !== scout.pinHash) {
+        throw new ScoutingError('Wrong PIN');
+      }
+      await db.settings.put({ key: 'scoutId', value: scout.scoutId });
+      return scout;
+    },
+
+    async logout(): Promise<void> {
+      await db.settings.delete('scoutId');
+    },
+
     /** The qualification match from the Event Bundle's schedule, or undefined for playoffs, practice and unscheduled matches. */
     async scheduledMatch(matchNumber: number): Promise<ScheduledMatch | undefined> {
       return (await getEventBundle())?.schedule.find((m) => m.matchNumber === matchNumber);
@@ -220,6 +268,7 @@ export function createScoutingCore({
     async startMatchReport({ matchNumber, station, teamNumber: typedTeam }: NewMatchReport): Promise<MatchReport> {
       const bundle = await getEventBundle();
       if (!bundle) throw new ScoutingError('No Event Bundle on this device yet');
+      const scout = await requireScout();
       if (!Number.isInteger(matchNumber) || matchNumber < 1) throw new ScoutingError('Match number must be 1 or more');
       const scheduledTeam = bundle.schedule.find((m) => m.matchNumber === matchNumber)?.stations[station];
       if (scheduledTeam !== undefined && typedTeam !== undefined && typedTeam !== scheduledTeam) {
@@ -236,7 +285,7 @@ export function createScoutingCore({
         id: newId(),
         kind: 'match',
         eventKey: bundle.eventKey,
-        scoutId: null,
+        scoutId: scout.scoutId,
         configVersion: latestConfig.version,
         status: 'draft',
         voided: false,
@@ -309,7 +358,7 @@ export function createScoutingCore({
     },
 
     async complete(reportId: string): Promise<void> {
-      await db.transaction('rw', db.reports, async () => {
+      await db.transaction('rw', db.reports, db.settings, async () => {
         const report = await loadChangeable(reportId);
         if (report.status !== 'draft') throw new ScoutingError('This Report is already Complete');
         const missing = unansweredRequiredIn(report);
@@ -323,8 +372,8 @@ export function createScoutingCore({
      * Void like any other change. There is no undo: once the Sheet has the Void, no Upload can clear it.
      */
     async voidReport(reportId: string): Promise<void> {
-      await db.transaction('rw', db.reports, async () => {
-        const report = await loadReport(reportId);
+      await db.transaction('rw', db.reports, db.settings, async () => {
+        const report = await loadOwn(reportId);
         if (report.voided) return;
         await db.reports.put({ ...report, voided: true, updatedAt: now().toISOString() });
       });
@@ -364,9 +413,11 @@ export function createScoutingCore({
       return summary;
     },
 
-    /** This device's Reports, newest first. */
+    /** The logged-in Scout's Reports on this device, newest first. Empty when nobody is logged in. */
     async listReports(): Promise<ListedReport[]> {
-      const reports = await db.reports.orderBy('updatedAt').reverse().toArray();
+      const scout = await currentScout();
+      if (!scout) return [];
+      const reports = (await db.reports.orderBy('updatedAt').reverse().toArray()).filter((r) => r.scoutId === scout.scoutId);
       const uploads = new Map((await db.uploads.toArray()).map((u) => [u.reportId, u.updatedAt]));
       return reports.map((report) => ({ report, uploaded: uploads.get(report.id) === report.updatedAt }));
     },

@@ -19,6 +19,7 @@ function statusOf({ report, uploaded }: ListedReport): { text: string; className
 
 export function HomeScreen({ core, navigate }: { core: ScoutingCore; navigate: (screen: Screen) => void }) {
   const bundle = useLiveQuery(() => core.getEventBundle());
+  const scout = useLiveQuery(() => core.currentScout());
   const reports = useLiveQuery(() => core.listReports(), [], []);
   const pending = useLiveQuery(() => core.pendingUploads(), [], []);
   const [busy, setBusy] = useState(false);
@@ -56,6 +57,14 @@ export function HomeScreen({ core, navigate }: { core: ScoutingCore; navigate: (
   return (
     <main>
       <h1>Scouting</h1>
+      {scout && (
+        <p>
+          Logged in as <strong>{scout.name}</strong> ·{' '}
+          <button className="link" onClick={() => core.logout()}>
+            Log out
+          </button>
+        </p>
+      )}
       <p className="muted">
         {bundle
           ? `Event ${bundle.eventKey} · ${bundle.schedule.length} qualification matches`
@@ -70,7 +79,7 @@ export function HomeScreen({ core, navigate }: { core: ScoutingCore; navigate: (
         </button>
       </p>
 
-      <button className="primary" disabled={!bundle} onClick={() => navigate({ name: 'new-match-report' })}>
+      <button className="primary" disabled={!bundle || !scout} onClick={() => navigate({ name: 'new-match-report' })}>
         New Match Report
       </button>
 

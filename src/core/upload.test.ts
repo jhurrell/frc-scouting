@@ -3,6 +3,7 @@ import { SheetGatewayError, type EventBundle, type SeasonConfig } from '../share
 import { FakeSheetGateway } from '../gateway/fakeSheetGateway';
 import { ScoutingDb } from './db';
 import { createScoutingCore, ScoutingError } from './scoutingCore';
+import { TEST_SCOUT, testRoster } from './testScouts';
 
 const config: SeasonConfig = {
   season: 'test',
@@ -10,7 +11,7 @@ const config: SeasonConfig = {
   match: { stages: { Teleop: [{ code: 'tele_scored', label: 'Scored', type: 'counter' }] } },
   pit: { groups: [] },
 };
-const bundle: EventBundle = { eventKey: '2026test', teams: [], schedule: [], roster: [], coverage: [] };
+const bundle: EventBundle = { eventKey: '2026test', teams: [], schedule: [], roster: testRoster, coverage: [] };
 const ACCESS_CODE = 'team-code';
 
 let dbName: string;
@@ -26,6 +27,7 @@ async function setUpDevice() {
   const core = makeCore();
   await core.setAccessCode(ACCESS_CODE);
   await core.refreshEventBundle();
+  await core.login(TEST_SCOUT.scoutId, TEST_SCOUT.pin);
   return core;
 }
 

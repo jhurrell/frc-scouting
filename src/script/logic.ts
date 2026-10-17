@@ -3,10 +3,13 @@
 // See ADR 0001 and the spec's "Upload rules".
 
 import {
+  PIN_PATTERN,
+  pinHashText,
   STATIONS,
   type Answer,
   type EventBundle,
   type Report,
+  type RosterEntry,
   type ScheduledMatch,
   type ScriptRequest,
   type ScriptResponse,
@@ -36,15 +39,26 @@ export interface TbaPort {
   get(path: string): unknown;
 }
 
-export interface ScriptSecrets {
+/** Hashing, which Apps Script and Node provide differently. */
+export interface ScriptCrypto {
+  /** Lowercase hex of the SHA-256 of the UTF-8 text. */
+  sha256Hex(text: string): string;
+  /** A fresh random salt. */
+  newSalt(): string;
+}
+
+/** Everything a web app request needs besides the Sheets. */
+export interface ScriptEnv {
   /** The team access code, from the script's properties. Null when an Admin hasn't set it. */
   accessCode: string | null;
+  now: Date;
+  crypto: ScriptCrypto;
 }
 
 /** A problem to show an Admin, as opposed to a bug. */
 export class ScriptError extends Error {}
 
-export const SEASON_TABS = { settings: 'Settings', events: 'Events' } as const;
+export const SEASON_TABS = { settings: 'Settings', scouts: 'Scouts', events: 'Events' } as const;
 export const EVENT_TABS = { schedule: 'Schedule', teams: 'Teams' } as const;
 export const REPORT_TABS = { match: 'Match Reports', pit: 'Pit Reports' } as const;
 export const CURRENT_EVENT_SETTING = 'Current event';
@@ -53,6 +67,7 @@ const SETTINGS_HEADER = ['Setting', 'Value'];
 const EVENTS_HEADER = ['Event key', 'Event Sheet ID'];
 const SCHEDULE_HEADER = ['Match', ...STATIONS];
 const TEAMS_HEADER = ['Team'];
+const SCOUTS_HEADER = ['Scout ID', 'Name', 'PIN'];
 
 /** Fixed columns at the left of every Report tab. Question-code columns follow. */
 export const METADATA_COLUMNS = [
@@ -77,29 +92,29 @@ const CODE_PATTERN = /^[a-z][a-z0-9_]*$/;
 
 // ---- Requests ----
 
-export function handleRequest(rawBody: string, port: SpreadsheetPort, secrets: ScriptSecrets, now: Date): ScriptResponse {
+export function handleRequest(rawBody: string, port: SpreadsheetPort, env: ScriptEnv): ScriptResponse {
   let request: ScriptRequest;
   try {
     request = JSON.parse(rawBody) as ScriptRequest;
   } catch {
     return { ok: false, error: 'The request was not valid JSON' };
   }
-  if (!secrets.accessCode) return { ok: false, error: 'The script has no ACCESS_CODE property. An Admin needs to set it.' };
-  if (typeof request !== 'object' || request === null || request.accessCode !== secrets.accessCode) {
+  if (!env.accessCode) return { ok: false, error: 'The script has no ACCESS_CODE property. An Admin needs to set it.' };
+  if (typeof request !== 'object' || request === null || request.accessCode !== env.accessCode) {
     return { ok: false, error: 'Wrong access code' };
   }
 
   switch (request.action) {
     case 'event-bundle':
       try {
-        return { ok: true, bundle: buildEventBundle(port) };
+        return { ok: true, bundle: buildEventBundle(port, env.crypto) };
       } catch (error) {
         if (error instanceof ScriptError) return { ok: false, error: error.message };
         throw error;
       }
     case 'upload':
       if (!Array.isArray(request.reports)) return { ok: false, error: 'An upload needs a list of Reports' };
-      return { ok: true, outcomes: uploadReports(request.reports, port, now) };
+      return { ok: true, outcomes: uploadReports(request.reports, port, env.now) };
     default:
       return { ok: false, error: `Unknown action "${String((request as { action?: unknown }).action)}"` };
   }
@@ -176,13 +191,68 @@ function readTeams(table: Table, schedule: ScheduledMatch[]): number[] {
   return [...teams].sort((a, b) => a - b);
 }
 
+/** A PIN cell as text. Sheets turns a typed 0123 into the number 123, so numbers get their leading zeros back. */
+function pinFrom(cell: Cell | undefined): string {
+  if (typeof cell === 'number' && Number.isInteger(cell) && cell >= 0 && cell <= 9999) return String(cell).padStart(4, '0');
+  return String(cell ?? '').trim();
+}
+
+interface Scout {
+  scoutId: string;
+  name: string;
+  pin: string;
+}
+
+/**
+ * The Scouts tab, read by its header: Scout ID, Name, PIN. Blank rows are skipped. Any other problem fails the
+ * whole read with the row number, so an Admin's typo shows up at once instead of silently locking a Scout out.
+ */
+function readScouts(table: Table): Scout[] {
+  const [header = [], ...rows] = table;
+  const column = (name: string) => {
+    const index = header.indexOf(name);
+    if (index === -1) throw new ScriptError(`The ${SEASON_TABS.scouts} tab needs a "${name}" column.`);
+    return index;
+  };
+  if (table.length === 0) return [];
+  const [idColumn, nameColumn, pinColumn] = [column('Scout ID'), column('Name'), column('PIN')];
+
+  const scouts: Scout[] = [];
+  rows.forEach((row, i) => {
+    const where = `${SEASON_TABS.scouts} tab, row ${i + 2}`;
+    const scout = {
+      scoutId: String(row[idColumn] ?? '').trim(),
+      name: String(row[nameColumn] ?? '').trim(),
+      pin: pinFrom(row[pinColumn]),
+    };
+    if (!scout.scoutId && !scout.name && !scout.pin) return;
+    if (!scout.scoutId) throw new ScriptError(`${where}: Scout ID is missing.`);
+    if (!scout.name) throw new ScriptError(`${where}: Name is missing.`);
+    if (!PIN_PATTERN.test(scout.pin)) throw new ScriptError(`${where}: the PIN must be four digits.`);
+    if (scouts.some((s) => s.scoutId === scout.scoutId)) {
+      throw new ScriptError(`${where}: Scout ID ${scout.scoutId} is used twice.`);
+    }
+    scouts.push(scout);
+  });
+  return scouts;
+}
+
+/** The roster for the Event Bundle: names and salted PIN hashes, never the PINs. */
+function rosterFrom(scouts: Scout[], crypto: ScriptCrypto): RosterEntry[] {
+  return scouts.map(({ scoutId, name, pin }) => {
+    const salt = crypto.newSalt();
+    return { scoutId, name, salt, pinHash: crypto.sha256Hex(pinHashText(salt, pin)) };
+  });
+}
+
 /** The Event Bundle for the current event. */
-export function buildEventBundle(port: SpreadsheetPort): EventBundle {
+export function buildEventBundle(port: SpreadsheetPort, crypto: ScriptCrypto): EventBundle {
   const { eventKey, eventSheetId } = currentEvent(port);
   const schedule = readSchedule(port.readEventTab(eventSheetId, EVENT_TABS.schedule));
   const teams = readTeams(port.readEventTab(eventSheetId, EVENT_TABS.teams), schedule);
-  // The roster and Coverage arrive in tickets 05 and 10.
-  return { eventKey, teams, schedule, roster: [], coverage: [] };
+  const roster = rosterFrom(readScouts(port.readSeasonTab(SEASON_TABS.scouts)), crypto);
+  // Coverage arrives in ticket 10.
+  return { eventKey, teams, schedule, roster, coverage: [] };
 }
 
 // ---- Admin menu ----
@@ -273,6 +343,8 @@ export function createEvent(typedKey: string, port: SpreadsheetPort, tba: TbaPor
   const fetched = fetchFromTba(eventKey, eventSheetId, port, tba);
   const settings = port.readSeasonTab(SEASON_TABS.settings);
   port.writeSeasonTab(SEASON_TABS.settings, withKeyValue(settings, SETTINGS_HEADER, CURRENT_EVENT_SETTING, eventKey));
+  // An empty Scouts tab, ready for the Admin to fill in.
+  if (port.readSeasonTab(SEASON_TABS.scouts).length === 0) port.writeSeasonTab(SEASON_TABS.scouts, [SCOUTS_HEADER]);
 
   return [
     existed ? `${eventKey} already had an Event Sheet, so it was reused.` : `Created the Event Sheet "Scouting ${eventKey}".`,
@@ -318,8 +390,17 @@ export function problemWithReport(report: unknown): string | null {
   return null;
 }
 
+/** Scout names by Scout ID, for the Scout column. Lenient: a Scouts tab with problems still names who it can. */
+function scoutNames(table: Table): Map<string, string> {
+  const [header = [], ...rows] = table;
+  const [idColumn, nameColumn] = [header.indexOf('Scout ID'), header.indexOf('Name')];
+  if (idColumn === -1 || nameColumn === -1) return new Map();
+  return new Map(rows.map((row) => [String(row[idColumn] ?? '').trim(), String(row[nameColumn] ?? '').trim()]));
+}
+
 export function uploadReports(reports: unknown[], port: SpreadsheetPort, now: Date): UploadOutcome[] {
   const eventSheets = readKeyValueTab(port.readSeasonTab(SEASON_TABS.events));
+  const names = scoutNames(port.readSeasonTab(SEASON_TABS.scouts));
   const outcomes = new Map<number, UploadOutcome>();
   const batches = new Map<string, { sheetId: string; tab: string; items: { index: number; report: Report }[] }>();
 
@@ -339,7 +420,7 @@ export function uploadReports(reports: unknown[], port: SpreadsheetPort, now: Da
   });
 
   for (const { sheetId, tab, items } of batches.values()) {
-    const result = upsertReports(port.readEventTab(sheetId, tab), items.map((i) => i.report), now, 'device');
+    const result = upsertReports(port.readEventTab(sheetId, tab), items.map((i) => i.report), { now, via: 'device', names });
     if (result.outcomes.includes('stored')) port.writeEventTab(sheetId, tab, result.table);
     items.forEach(({ index, report }, i) => outcomes.set(index, { reportId: report.id, outcome: result.outcomes[i] }));
   }
@@ -355,7 +436,7 @@ export function toCell(value: Answer | null): Cell {
   return value;
 }
 
-function metadataFor(report: Report, uploadedAt: string, via: string): Record<MetadataColumn, Cell> {
+function metadataFor(report: Report, uploadedAt: string, via: string, scoutName: string): Record<MetadataColumn, Cell> {
   return {
     'Report ID': toCell(report.id),
     Event: toCell(report.eventKey),
@@ -364,7 +445,7 @@ function metadataFor(report: Report, uploadedAt: string, via: string): Record<Me
     Station: report.kind === 'match' ? report.station : '',
     Team: report.teamNumber,
     'Scout ID': toCell(report.scoutId),
-    Scout: '', // Filled from the roster once login exists (ticket 05).
+    Scout: toCell(scoutName),
     'Config version': report.configVersion,
     Void: report.voided,
     Created: toCell(report.createdAt),
@@ -388,8 +469,7 @@ function isVoidCell(cell: Cell | undefined): boolean {
 export function upsertReports(
   table: Table,
   reports: Report[],
-  now: Date,
-  via: string,
+  { now, via, names }: { now: Date; via: string; names: Map<string, string> },
 ): { table: Table; outcomes: ('stored' | 'stale')[] } {
   const header: Cell[] = table.length > 0 ? [...table[0]] : [];
   const rows: Cell[][] = table.slice(1).map((row) => [...row]);
@@ -423,7 +503,8 @@ export function upsertReports(
     const voidInSheet = isVoidCell(row[voidColumn]);
 
     for (const code of Object.keys(report.answers)) columnOf(code);
-    for (const [name, value] of Object.entries(metadataFor(report, uploadedAt, via))) row[columnOf(name)] = value;
+    const scoutName = (report.scoutId !== null && names.get(report.scoutId)) || '';
+    for (const [name, value] of Object.entries(metadataFor(report, uploadedAt, via, scoutName))) row[columnOf(name)] = value;
     row[voidColumn] = report.voided || voidInSheet;
     // Every question-code column reflects this version of the Report, so a cleared answer clears its cell.
     header.forEach((name, i) => {

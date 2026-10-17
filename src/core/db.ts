@@ -4,6 +4,8 @@ import type { EventBundle, Report } from '../shared/contract';
 export interface Settings {
   eventBundle: EventBundle;
   accessCode: string;
+  /** The logged-in Scout. Absent when nobody is logged in. */
+  scoutId: string;
 }
 
 export interface SettingRow<K extends keyof Settings = keyof Settings> {
