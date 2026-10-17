@@ -40,6 +40,19 @@ main {
   padding: 1rem;
 }
 
+/* The Upload status line above every screen. */
+.upload-status {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.upload-status.pending {
+  color: var(--draft);
+}
+
 button {
   font: inherit;
   /* Stops double-tap zoom swallowing or delaying fast taps. */
@@ -122,6 +135,7 @@ select {
 .report-list button {
   width: 100%;
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: 1rem;
   padding: 0.8rem 0;
@@ -146,6 +160,16 @@ select {
 }
 
 .badge.pending {
+  color: var(--accent);
+}
+
+.badge.rejected {
+  color: var(--accent);
+}
+
+.report-list .rejection {
+  flex-basis: 100%;
+  font-size: 0.9em;
   color: var(--accent);
 }
 

@@ -1,7 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ScoutingDb } from './core/db';
-import { createScoutingCore } from './core/scoutingCore';
+import { createScoutingCore, type Network } from './core/scoutingCore';
 import { demoEventBundle } from './dev/demoEventBundle';
 import { FakeSheetGateway } from './gateway/fakeSheetGateway';
 import { HttpSheetGateway } from './gateway/httpSheetGateway';
@@ -18,12 +18,20 @@ function chooseGateway(): SheetGateway {
   throw new Error('VITE_SCRIPT_URL is not set. See docs/apps-script-setup.md.');
 }
 
-const core = createScoutingCore({ db: new ScoutingDb(), gateway: chooseGateway(), seasonConfigs });
+/** The browser's idea of the connection. It can say online on a network with no internet; an Upload then fails and says so. */
+const browserNetwork: Network = {
+  isOnline: () => navigator.onLine,
+  onOnline: (listener) => window.addEventListener('online', listener),
+};
 
+const core = createScoutingCore({ db: new ScoutingDb(), gateway: chooseGateway(), network: browserNetwork, seasonConfigs });
+
+// On start: fetch the latest Event Bundle, and send anything left from last time.
 core
   .hasAccessCode()
   .then((hasCode) => (hasCode ? core.refreshEventBundle() : undefined))
   .catch((error) => console.warn('Could not refresh the Event Bundle', error));
+void core.uploadInBackground();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

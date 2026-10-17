@@ -19,6 +19,9 @@ export class FakeSheetGateway implements SheetGateway {
   offline = false;
   /** Report IDs the fake rejects, with the reason. */
   readonly rejections = new Map<string, string>();
+  /** The Report IDs of every upload call that reached the fake, in order. */
+  readonly batches: string[][] = [];
+  private gate: Promise<void> | null = null;
 
   constructor(
     private bundle: EventBundle,
@@ -27,6 +30,16 @@ export class FakeSheetGateway implements SheetGateway {
 
   setEventBundle(bundle: EventBundle): void {
     this.bundle = bundle;
+  }
+
+  /** Holds every upload call that arrives from now on until the returned function is called. */
+  pause(): () => void {
+    let resume!: () => void;
+    this.gate = new Promise((resolve) => (resume = resolve));
+    return () => {
+      this.gate = null;
+      resume();
+    };
   }
 
   private check(accessCode: string): void {
@@ -42,6 +55,8 @@ export class FakeSheetGateway implements SheetGateway {
   }
 
   async upload(accessCode: string, reports: Report[]): Promise<UploadOutcome[]> {
+    this.batches.push(reports.map((r) => r.id));
+    if (this.gate) await this.gate;
     this.check(accessCode);
     return reports.map((report): UploadOutcome => {
       const reason = this.rejections.get(report.id);

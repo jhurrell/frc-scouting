@@ -1,11 +1,22 @@
 import Dexie, { type Table } from 'dexie';
 import type { EventBundle, Report } from '../shared/contract';
 
+/** How the last Upload attempt went. Kept so every screen can show it, and so it survives a reload. */
+export interface UploadStatus {
+  /** When the last attempt finished. ISO 8601. */
+  at: string;
+  /** Why the last attempt failed as a whole, or null when it reached the Season Sheet. */
+  error: string | null;
+  /** Reports the Season Sheet refused, and the version it refused. A later change to a Report makes its rejection old news. */
+  rejections: { reportId: string; updatedAt: string; reason: string }[];
+}
+
 export interface Settings {
   eventBundle: EventBundle;
   accessCode: string;
   /** The logged-in Scout. Absent when nobody is logged in. */
   scoutId: string;
+  uploadStatus: UploadStatus;
 }
 
 export interface SettingRow<K extends keyof Settings = keyof Settings> {

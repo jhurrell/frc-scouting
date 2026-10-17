@@ -15,7 +15,7 @@ import {
   type SheetGateway,
   type Station,
 } from '../shared/contract';
-import type { ScoutingDb, UploadRow } from './db';
+import type { ScoutingDb, UploadRow, UploadStatus } from './db';
 import { formSections, validateSeasonConfigs } from './seasonConfig';
 
 export class ScoutingError extends Error {}
@@ -27,9 +27,21 @@ export class UnansweredRequiredError extends ScoutingError {
   }
 }
 
+/** The device's connection, as far as the browser knows it. */
+export interface Network {
+  isOnline(): boolean;
+  /** Calls the listener whenever the connection comes back. */
+  onOnline(listener: () => void): void;
+}
+
 export interface ScoutingCoreDeps {
   db: ScoutingDb;
   gateway: SheetGateway;
+  /**
+   * Watches the connection for automatic Uploads. Without it, Reports Upload only when asked, which keeps tests
+   * that don't care about automatic Upload free of background work.
+   */
+  network?: Network;
   /** Every Season Config version of the current season, as loaded from data. Validated here; new Reports use the highest version. */
   seasonConfigs: readonly unknown[];
   now?: () => Date;
@@ -52,6 +64,8 @@ export interface ListedReport {
   report: Report;
   /** True when the Season Sheet holds this exact version of the Report. */
   uploaded: boolean;
+  /** Why the Season Sheet refused this version of the Report, if it did. */
+  rejection?: string;
 }
 
 export interface UploadSummary {
@@ -128,6 +142,7 @@ function checkAnswer(question: Question, value: Answer): void {
 export function createScoutingCore({
   db,
   gateway,
+  network,
   seasonConfigs: rawConfigs,
   now = () => new Date(),
   newId = newReportId,
@@ -245,6 +260,92 @@ export function createScoutingCore({
   function checkTeamNumber(teamNumber: number): void {
     if (!Number.isInteger(teamNumber) || teamNumber < 1) throw new ScoutingError('Team number must be 1 or more');
   }
+
+  async function getUploadStatus(): Promise<UploadStatus | undefined> {
+    return (await db.settings.get('uploadStatus'))?.value as UploadStatus | undefined;
+  }
+
+  /**
+   * One Upload attempt: sends every pending Report in one batch and records how it went. Throws when the whole
+   * batch fails, after recording the reason. Earlier rejections are kept then, because nothing new was learned.
+   */
+  async function attemptUpload(): Promise<UploadSummary> {
+    const accessCode = await getAccessCode();
+    const pending = await pendingUploads();
+    if (pending.length === 0) return { stored: 0, stale: 0, rejected: [] };
+
+    let outcomes;
+    try {
+      outcomes = await gateway.upload(accessCode, pending);
+    } catch (error) {
+      const previous = await getUploadStatus();
+      const status: UploadStatus = {
+        at: now().toISOString(),
+        error: error instanceof Error ? error.message : String(error),
+        rejections: previous?.rejections ?? [],
+      };
+      await db.settings.put({ key: 'uploadStatus', value: status });
+      throw error;
+    }
+
+    const sent = new Map(pending.map((r) => [r.id, r.updatedAt]));
+    const summary: UploadSummary = { stored: 0, stale: 0, rejected: [] };
+    const stored: UploadRow[] = [];
+    const status: UploadStatus = { at: now().toISOString(), error: null, rejections: [] };
+    for (const outcome of outcomes) {
+      const updatedAt = sent.get(outcome.reportId);
+      if (updatedAt === undefined) continue;
+      if (outcome.outcome === 'rejected') {
+        summary.rejected.push({ reportId: outcome.reportId, reason: outcome.reason });
+        status.rejections.push({ reportId: outcome.reportId, updatedAt, reason: outcome.reason });
+      } else {
+        // Stored, or stale because the Sheet already has a newer copy: either way there's nothing more to send.
+        stored.push({ reportId: outcome.reportId, updatedAt });
+        summary[outcome.outcome] += 1;
+      }
+    }
+    await db.transaction('rw', db.uploads, db.settings, async () => {
+      await db.uploads.bulkPut(stored);
+      await db.settings.put({ key: 'uploadStatus', value: status });
+    });
+    return summary;
+  }
+
+  // Uploads run one at a time. A request made while one runs waits for it, then runs once more, so Reports
+  // completed meanwhile still go. Requests made while one is already waiting share that next run.
+  let running: Promise<UploadSummary> | null = null;
+  let next: Promise<UploadSummary> | null = null;
+
+  function uploadPending(): Promise<UploadSummary> {
+    if (next) return next;
+    if (!running) {
+      running = attemptUpload().finally(() => (running = null));
+      return running;
+    }
+    next = running
+      .catch(() => undefined)
+      .then(() => {
+        next = null;
+        return uploadPending();
+      });
+    return next;
+  }
+
+  /**
+   * An automatic Upload: only with a network to watch, while it says the device is online, and when there's
+   * something to send. Failures are recorded in the Upload status rather than thrown, since nobody is waiting.
+   */
+  async function uploadInBackground(): Promise<void> {
+    if (!network?.isOnline()) return;
+    try {
+      if ((await pendingUploads()).length === 0) return;
+      await uploadPending();
+    } catch {
+      // Already recorded in the Upload status.
+    }
+  }
+
+  network?.onOnline(() => void uploadInBackground());
 
   async function getEventBundle(): Promise<EventBundle | undefined> {
     const row = await db.settings.get('eventBundle');
@@ -404,6 +505,7 @@ export function createScoutingCore({
         if (missing.length > 0) throw new UnansweredRequiredError(missing);
         await db.reports.put({ ...report, status: 'complete', updatedAt: now().toISOString() });
       });
+      void uploadInBackground();
     },
 
     /**
@@ -416,6 +518,7 @@ export function createScoutingCore({
         if (report.voided) return;
         await db.reports.put({ ...report, voided: true, updatedAt: now().toISOString() });
       });
+      void uploadInBackground();
     },
 
     getReport(reportId: string): Promise<Report | undefined> {
@@ -425,50 +528,49 @@ export function createScoutingCore({
     pendingUploads,
 
     /**
-     * Sends every pending Report to the Season Sheet in one batch. Reports the script stores are marked Uploaded;
-     * rejected ones stay pending. Throws SheetGatewayError if the whole batch fails, leaving everything pending.
+     * "Upload now": sends every pending Report to the Season Sheet in one batch. Reports the script stores are marked
+     * Uploaded; rejected ones stay pending, with their reason. Throws SheetGatewayError if the whole batch fails,
+     * leaving everything pending.
      */
-    async uploadPending(): Promise<UploadSummary> {
-      const accessCode = await getAccessCode();
-      const pending = await pendingUploads();
-      if (pending.length === 0) return { stored: 0, stale: 0, rejected: [] };
+    uploadPending,
 
-      const outcomes = await gateway.upload(accessCode, pending);
-      const sent = new Map(pending.map((r) => [r.id, r.updatedAt]));
-      const summary: UploadSummary = { stored: 0, stale: 0, rejected: [] };
-      const stored: UploadRow[] = [];
-      for (const outcome of outcomes) {
-        const updatedAt = sent.get(outcome.reportId);
-        if (updatedAt === undefined) continue;
-        if (outcome.outcome === 'rejected') {
-          summary.rejected.push({ reportId: outcome.reportId, reason: outcome.reason });
-        } else {
-          // Stored, or stale because the Sheet already has a newer copy: either way there's nothing more to send.
-          stored.push({ reportId: outcome.reportId, updatedAt });
-          summary[outcome.outcome] += 1;
-        }
-      }
-      await db.uploads.bulkPut(stored);
-      return summary;
-    },
+    /**
+     * Asks for an automatic Upload, for example when a Scout finishes editing a Complete Report. Completing and
+     * Voiding ask by themselves, and so does the connection coming back. Never throws.
+     */
+    uploadInBackground,
+
+    /** How the last Upload attempt went, or undefined before the first one. */
+    getUploadStatus,
 
     /**
      * The logged-in Scout's Reports on this device, newest first. Empty when nobody is logged in.
      *
-     * The home screen watches this with a Dexie live query. Outside a transaction, Dexie stops noticing reads made
-     * after awaiting a helper that itself awaits another helper (currentScout here), so the list never refreshed
-     * on Upload. The read transaction keeps every read visible to the live query.
+     * The home screen watches this with a Dexie live query, which only notices reads Dexie can see. Dexie loses
+     * sight of reads made after awaiting a helper that itself awaits another, so every read here starts at once,
+     * before the first await. (Wrapping the reads in a transaction instead failed in real browsers: IndexedDB
+     * committed it early while the nested helpers were still awaiting.)
      */
-    listReports(): Promise<ListedReport[]> {
-      return db.transaction('r', db.reports, db.settings, db.uploads, async () => {
-        const scout = await currentScout();
-        if (!scout) return [];
-        const reports = (await db.reports.orderBy('updatedAt').reverse().toArray()).filter(
-          (r) => r.scoutId === scout.scoutId,
-        );
-        const uploads = new Map((await db.uploads.toArray()).map((u) => [u.reportId, u.updatedAt]));
-        return reports.map((report) => ({ report, uploaded: uploads.get(report.id) === report.updatedAt }));
-      });
+    async listReports(): Promise<ListedReport[]> {
+      const [scoutRow, bundleRow, newestFirst, uploadRows, statusRow] = await Promise.all([
+        db.settings.get('scoutId'),
+        db.settings.get('eventBundle'),
+        db.reports.orderBy('updatedAt').reverse().toArray(),
+        db.uploads.toArray(),
+        db.settings.get('uploadStatus'),
+      ]);
+      const roster = (bundleRow?.value as EventBundle | undefined)?.roster ?? [];
+      const scout = roster.find((s) => s.scoutId === scoutRow?.value);
+      if (!scout) return [];
+      const uploads = new Map(uploadRows.map((u) => [u.reportId, u.updatedAt]));
+      const rejections = (statusRow?.value as UploadStatus | undefined)?.rejections ?? [];
+      return newestFirst
+        .filter((report) => report.scoutId === scout.scoutId)
+        .map((report) => {
+          const uploaded = uploads.get(report.id) === report.updatedAt;
+          const rejection = rejections.find((r) => r.reportId === report.id && r.updatedAt === report.updatedAt);
+          return { report, uploaded, ...(rejection && !uploaded && { rejection: rejection.reason }) };
+        });
     },
   };
 }

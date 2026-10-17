@@ -26,6 +26,12 @@ export function ReportForm({ core, reportId, navigate }: Props) {
   const labelOf = (code: string) =>
     sections.flatMap((s) => s.questions).find((q) => q.code === code)?.label ?? code;
 
+  /** Back to the home screen. Edits to a Complete Report Upload as the Scout leaves it. */
+  function leave() {
+    if (editing) void core.uploadInBackground();
+    navigate({ name: 'home' });
+  }
+
   function run(action: () => Promise<void>) {
     setError(null);
     action().catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
@@ -33,7 +39,7 @@ export function ReportForm({ core, reportId, navigate }: Props) {
 
   return (
     <main>
-      <button className="link" onClick={() => navigate({ name: 'home' })}>
+      <button className="link" onClick={leave}>
         ‹ Home
       </button>
       <h1>{report.kind === 'match' ? `Match ${report.matchNumber} · ${report.station}` : `Pit · Team ${report.teamNumber}`}</h1>
@@ -47,7 +53,7 @@ export function ReportForm({ core, reportId, navigate }: Props) {
         )}
       </p>
       {report.voided && <p className="muted">This Report is Void. It is kept, but left out of analysis.</p>}
-      {editing && <p className="muted">Editing. Changes are saved as you make them and Uploaded again.</p>}
+      {editing && <p className="muted">Editing. Changes are saved as you make them, and Upload when you leave this Report.</p>}
 
       {sections.map(({ title, questions }) => (
         <section key={title}>
@@ -89,7 +95,7 @@ export function ReportForm({ core, reportId, navigate }: Props) {
       )}
 
       {!isDraft && !report.voided && (
-        <button className="primary" onClick={() => (editing ? navigate({ name: 'home' }) : setEditing(true))}>
+        <button className="primary" onClick={() => (editing ? leave() : setEditing(true))}>
           {editing ? 'Done' : 'Edit'}
         </button>
       )}

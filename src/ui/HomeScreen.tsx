@@ -10,8 +10,9 @@ function describeReport(report: Report): string {
     : `Pit · Team ${report.teamNumber}`;
 }
 
-function statusOf({ report, uploaded }: ListedReport): { text: string; className: string } {
+function statusOf({ report, uploaded, rejection }: ListedReport): { text: string; className: string } {
   if (report.status === 'draft') return { text: report.voided ? 'Void Draft' : 'Draft', className: report.voided ? 'void' : 'draft' };
+  if (rejection) return { text: 'Not accepted', className: 'rejected' };
   const upload = uploaded ? 'Uploaded' : 'Not uploaded';
   if (report.voided) return { text: `Void · ${upload}`, className: 'void' };
   return uploaded ? { text: upload, className: 'complete' } : { text: upload, className: 'pending' };
@@ -45,10 +46,10 @@ export function HomeScreen({ core, navigate }: { core: ScoutingCore; navigate: (
       const { stored, stale, rejected } = await core.uploadPending();
       const parts = [`Uploaded ${stored} Report${stored === 1 ? '' : 's'}.`];
       if (stale > 0) parts.push(`${stale} already had a newer copy in the Sheet.`);
-      for (const r of rejected) parts.push(`Not accepted (${r.reportId.slice(0, 8)}): ${r.reason}.`);
+      if (rejected.length > 0) parts.push(`${rejected.length} not accepted; the reasons are below.`);
       setMessage({ text: parts.join(' '), error: rejected.length > 0 });
-    } catch (e) {
-      setMessage({ text: e instanceof Error ? e.message : String(e), error: true });
+    } catch {
+      // The Upload status line at the top shows why it failed.
     } finally {
       setBusy(false);
     }
@@ -89,7 +90,7 @@ export function HomeScreen({ core, navigate }: { core: ScoutingCore; navigate: (
       )}
 
       <button className="secondary" disabled={busy || pending.length === 0} onClick={uploadNow}>
-        {busy ? 'Uploading…' : `Upload now (${pending.length} waiting)`}
+        {busy ? 'Uploading…' : 'Upload now'}
       </button>
       {message && <p className={message.error ? 'error' : 'muted'}>{message.text}</p>}
 
@@ -103,6 +104,7 @@ export function HomeScreen({ core, navigate }: { core: ScoutingCore; navigate: (
               <button onClick={() => navigate({ name: 'report', reportId: item.report.id })}>
                 <span>{describeReport(item.report)}</span>
                 <span className={`badge ${status.className}`}>{status.text}</span>
+                {item.rejection && <span className="rejection">{item.rejection}</span>}
               </button>
             </li>
           );

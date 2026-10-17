@@ -119,3 +119,47 @@ describe('the app watching who is logged in', () => {
     await app.shows((state) => state.eventKey === '2026next');
   });
 });
+
+describe('the Upload status line', () => {
+  it('sees the pending count rise and fall, and a failed Upload’s reason', async () => {
+    const gateway = new FakeSheetGateway(bundle);
+    const core = createScoutingCore({ db, gateway, seasonConfigs: [config] });
+    await core.setAccessCode('team-code');
+    await core.refreshEventBundle();
+    await core.login(TEST_SCOUT.scoutId, TEST_SCOUT.pin);
+    const status = watch(async () => ({
+      pending: (await core.pendingUploads()).length,
+      error: (await core.getUploadStatus())?.error,
+    }));
+    await status.shows((s) => s.pending === 0);
+
+    const { id } = await core.startMatchReport({ matchNumber: 1, station: 'Red 1', teamNumber: 578 });
+    await core.complete(id);
+    await status.shows((s) => s.pending === 1);
+
+    gateway.offline = true;
+    await core.uploadPending().catch(() => undefined);
+    await status.shows((s) => s.pending === 1 && s.error !== undefined && s.error !== null);
+
+    gateway.offline = false;
+    await core.uploadPending();
+    await status.shows((s) => s.pending === 0 && s.error === null);
+  });
+
+  it('shows a rejection on its row in My Reports', async () => {
+    const gateway = new FakeSheetGateway(bundle);
+    const core = createScoutingCore({ db, gateway, seasonConfigs: [config] });
+    await core.setAccessCode('team-code');
+    await core.refreshEventBundle();
+    await core.login(TEST_SCOUT.scoutId, TEST_SCOUT.pin);
+    const { id } = await core.startMatchReport({ matchNumber: 1, station: 'Red 1', teamNumber: 578 });
+    await core.complete(id);
+    const myReports = watch(() => core.listReports());
+    await myReports.shows((list) => list.length === 1 && list[0].rejection === undefined);
+
+    gateway.rejections.set(id, 'bad answers');
+    await core.uploadPending();
+
+    await myReports.shows((list) => list[0].rejection === 'bad answers');
+  });
+});

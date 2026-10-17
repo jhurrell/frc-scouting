@@ -73,6 +73,10 @@ Use a past event that TBA has a schedule for, such as `2025nyro`.
 20. **Stays logged in:** reload the page. Expect to still be logged in.
 21. **Roster problems:** in the Scouts tab, change a PIN to `12`. In the app, choose **Refresh**. Expect an error naming the Scouts tab row, and the app keeps working with its old Event Bundle. Put the PIN back.
 22. **Pit Report:** choose **New Pit Report**. Expect the Teams tab's teams as buttons. Pick one, answer the required question, choose Complete and upload. In the Event Sheet, the `Pit Reports` tab should have the same metadata columns as `Match Reports`, with Match and Station blank, then one column per pit question code. Start another Pit Report by typing a team number that isn't listed, and expect it to upload the same way.
+23. **Automatic Upload:** complete a Match Report without pressing **Upload now**. Within a few seconds, expect the line at the top to say "Nothing waiting to Upload", the Report marked Uploaded, and its row in the Event Sheet.
+24. **Offline, then back:** on the phone, turn on airplane mode without reloading the page. Complete two Reports. Expect the top line to say "2 Reports waiting to Upload · Offline". Turn airplane mode off. Expect both to Upload without pressing anything, and two new rows in the Sheet, with no duplicates.
+25. **Script refuses:** in Apps Script, change the `ACCESS_CODE` Script Property to something else. Complete a Report. Expect the top line to say "Last Upload failed: Wrong access code", and the Report still pending. Put the property back and press **Upload now**. Expect it to Upload, and the failure message gone.
+26. **Every screen:** while a Report is waiting, open New Match Report, a Report and the Log in screen. Expect the pending count at the top of each.
 
 ## Updating the script later
 
