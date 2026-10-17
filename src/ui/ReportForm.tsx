@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useState } from 'react';
 import type { ScoutingCore } from '../core/scoutingCore';
-import { MATCH_STAGES } from '../shared/contract';
+import { formSections } from '../core/seasonConfig';
 import type { Screen } from './App';
 import { QuestionInput } from './QuestionInput';
 
@@ -11,20 +11,20 @@ interface Props {
   navigate: (screen: Screen) => void;
 }
 
-export function MatchReportForm({ core, reportId, navigate }: Props) {
+/** The form for a Match Report or a Pit Report. Both use the same Draft-to-Complete flow. */
+export function ReportForm({ core, reportId, navigate }: Props) {
   const report = useLiveQuery(() => core.getReport(reportId), [reportId]);
   const unanswered = useLiveQuery(() => core.unansweredRequired(reportId), [reportId], []);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
 
   if (!report) return <main className="muted">Loading…</main>;
-  if (report.kind !== 'match') return <main>Not a Match Report.</main>;
 
-  const config = core.seasonConfigFor(report.configVersion);
+  const sections = formSections(core.seasonConfigFor(report.configVersion), report.kind);
   const isDraft = report.status === 'draft';
   const canChange = !report.voided && (isDraft || editing);
   const labelOf = (code: string) =>
-    MATCH_STAGES.flatMap((s) => config.match.stages[s] ?? []).find((q) => q.code === code)?.label ?? code;
+    sections.flatMap((s) => s.questions).find((q) => q.code === code)?.label ?? code;
 
   function run(action: () => Promise<void>) {
     setError(null);
@@ -36,11 +36,9 @@ export function MatchReportForm({ core, reportId, navigate }: Props) {
       <button className="link" onClick={() => navigate({ name: 'home' })}>
         ‹ Home
       </button>
-      <h1>
-        Match {report.matchNumber} · {report.station}
-      </h1>
+      <h1>{report.kind === 'match' ? `Match ${report.matchNumber} · ${report.station}` : `Pit · Team ${report.teamNumber}`}</h1>
       <p className="muted">
-        Team {report.teamNumber} · <span className={`badge ${report.status}`}>{isDraft ? 'Draft' : 'Complete'}</span>
+        {report.kind === 'match' ? `Team ${report.teamNumber}` : 'Pit Report'} · <span className={`badge ${report.status}`}>{isDraft ? 'Draft' : 'Complete'}</span>
         {report.voided && (
           <>
             {' '}
@@ -51,26 +49,22 @@ export function MatchReportForm({ core, reportId, navigate }: Props) {
       {report.voided && <p className="muted">This Report is Void. It is kept, but left out of analysis.</p>}
       {editing && <p className="muted">Editing. Changes are saved as you make them and Uploaded again.</p>}
 
-      {MATCH_STAGES.map((stage) => {
-        const questions = config.match.stages[stage];
-        if (!questions?.length) return null;
-        return (
-          <section key={stage}>
-            <h2>{stage}</h2>
-            {questions.map((question) => (
-              <QuestionInput
-                key={question.code}
-                core={core}
-                reportId={report.id}
-                question={question}
-                value={report.answers[question.code]}
-                disabled={!canChange}
-                run={run}
-              />
-            ))}
-          </section>
-        );
-      })}
+      {sections.map(({ title, questions }) => (
+        <section key={title}>
+          <h2>{title}</h2>
+          {questions.map((question) => (
+            <QuestionInput
+              key={question.code}
+              core={core}
+              reportId={report.id}
+              question={question}
+              value={report.answers[question.code]}
+              disabled={!canChange}
+              run={run}
+            />
+          ))}
+        </section>
+      ))}
 
       {error && <p className="error">{error}</p>}
 

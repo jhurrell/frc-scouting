@@ -1,0 +1,114 @@
+{
+  "season": "demo",
+  "version": 2,
+  "match": {
+    "stages": {
+      "Pre-Match": [
+        {
+          "code": "start_pos",
+          "label": "Starting position",
+          "type": "single-choice",
+          "options": ["Left", "Middle", "Right"],
+          "required": true
+        }
+      ],
+      "Autonomous": [
+        {
+          "code": "auto_moved",
+          "label": "Left the starting line",
+          "type": "yes-no",
+          "required": true
+        },
+        {
+          "code": "auto_scored",
+          "label": "Game pieces scored",
+          "type": "counter"
+        }
+      ],
+      "Teleop": [
+        {
+          "code": "tele_scored",
+          "label": "Game pieces scored",
+          "type": "counter"
+        },
+        {
+          "code": "tele_cycle",
+          "label": "Typical cycle time (seconds)",
+          "type": "number",
+          "min": 0,
+          "max": 150
+        }
+      ],
+      "Endgame": [
+        {
+          "code": "end_actions",
+          "label": "Endgame actions",
+          "type": "multiple-choice",
+          "options": ["Parked", "Climbed", "Played defence"]
+        }
+      ],
+      "Post-Match": [
+        {
+          "code": "notes",
+          "label": "Notes",
+          "type": "text"
+        }
+      ]
+    }
+  },
+  "pit": {
+    "groups": [
+      {
+        "name": "Drivetrain",
+        "questions": [
+          {
+            "code": "drive_type",
+            "label": "Drivetrain",
+            "type": "single-choice",
+            "options": ["Swerve", "Tank", "Mecanum", "Other"],
+            "required": true
+          },
+          {
+            "code": "drive_motors",
+            "label": "Drive motors",
+            "type": "counter",
+            "max": 8
+          }
+        ]
+      },
+      {
+        "name": "Robot",
+        "questions": [
+          {
+            "code": "weight_lb",
+            "label": "Weight (lb)",
+            "type": "number",
+            "min": 0,
+            "max": 150
+          },
+          {
+            "code": "can_climb",
+            "label": "Can climb",
+            "type": "yes-no"
+          }
+        ]
+      },
+      {
+        "name": "Strategy",
+        "questions": [
+          {
+            "code": "preferred_role",
+            "label": "Preferred role",
+            "type": "single-choice",
+            "options": ["Scoring", "Defence", "Either"]
+          },
+          {
+            "code": "pit_notes",
+            "label": "Notes",
+            "type": "text"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,4 +1,4 @@
-import { MATCH_STAGES, type Question, type QuestionType, type SeasonConfig } from '../shared/contract';
+import { MATCH_STAGES, type Question, type QuestionType, type Report, type SeasonConfig } from '../shared/contract';
 
 const QUESTION_TYPES: readonly QuestionType[] = ['counter', 'yes-no', 'single-choice', 'multiple-choice', 'number', 'text'];
 const CHOICE_TYPES: readonly QuestionType[] = ['single-choice', 'multiple-choice'];
@@ -116,14 +116,35 @@ function checkConfig(raw: unknown, problems: string[]): void {
   if (!Array.isArray(groups)) {
     problems.push(`${where}: pit.groups is required`);
   } else {
+    const names = new Set<string>();
     groups.forEach((group, i) => {
       if (!isObject(group) || !isNonEmptyString(group.name)) {
         problems.push(`${where} pit group ${i + 1}: name is required`);
         return;
       }
+      if (names.has(group.name)) problems.push(`${where}: pit group "${group.name}" appears more than once`);
+      names.add(group.name);
       checkQuestions(group.questions, `${where} pit "${group.name}"`);
     });
   }
+}
+
+export interface FormSection {
+  /** A Match Stage, or the name of a pit group. */
+  title: string;
+  questions: Question[];
+}
+
+/**
+ * The sections of a Report's form, in order: the Match Stages in their fixed order for a Match Report, or the pit
+ * groups in config order for a Pit Report. Sections without questions are left out.
+ */
+export function formSections(config: SeasonConfig, kind: Report['kind']): FormSection[] {
+  const sections =
+    kind === 'match'
+      ? MATCH_STAGES.map((stage) => ({ title: stage as string, questions: config.match.stages[stage] ?? [] }))
+      : config.pit.groups.map((group) => ({ title: group.name, questions: group.questions }));
+  return sections.filter((section) => section.questions.length > 0);
 }
 
 export function allQuestions(config: SeasonConfig): Question[] {

@@ -72,6 +72,7 @@ Use a past event that TBA has a schedule for, such as `2025nyro`.
 19. **Shared device:** log out. Expect the Log in screen. Log in as `Test Scout Two` with `0123` (the other Scout's PIN); expect "Wrong PIN". Log in with `4567`. The home screen lists only Test Scout Two's Reports, and a new Report Uploads with `t2`.
 20. **Stays logged in:** reload the page. Expect to still be logged in.
 21. **Roster problems:** in the Scouts tab, change a PIN to `12`. In the app, choose **Refresh**. Expect an error naming the Scouts tab row, and the app keeps working with its old Event Bundle. Put the PIN back.
+22. **Pit Report:** choose **New Pit Report**. Expect the Teams tab's teams as buttons. Pick one, answer the required question, choose Complete and upload. In the Event Sheet, the `Pit Reports` tab should have the same metadata columns as `Match Reports`, with Match and Station blank, then one column per pit question code. Start another Pit Report by typing a team number that isn't listed, and expect it to upload the same way.
 
 ## Updating the script later
 

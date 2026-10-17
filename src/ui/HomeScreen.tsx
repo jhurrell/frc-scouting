@@ -82,6 +82,11 @@ export function HomeScreen({ core, navigate }: { core: ScoutingCore; navigate: (
       <button className="primary" disabled={!bundle || !scout} onClick={() => navigate({ name: 'new-match-report' })}>
         New Match Report
       </button>
+      {core.hasPitQuestions() && (
+        <button className="secondary" disabled={!bundle || !scout} onClick={() => navigate({ name: 'new-pit-report' })}>
+          New Pit Report
+        </button>
+      )}
 
       <button className="secondary" disabled={busy || pending.length === 0} onClick={uploadNow}>
         {busy ? 'Uploading…' : `Upload now (${pending.length} waiting)`}
@@ -95,7 +100,7 @@ export function HomeScreen({ core, navigate }: { core: ScoutingCore; navigate: (
           const status = statusOf(item);
           return (
             <li key={item.report.id}>
-              <button onClick={() => navigate({ name: 'match-report', reportId: item.report.id })}>
+              <button onClick={() => navigate({ name: 'report', reportId: item.report.id })}>
                 <span>{describeReport(item.report)}</span>
                 <span className={`badge ${status.className}`}>{status.text}</span>
               </button>

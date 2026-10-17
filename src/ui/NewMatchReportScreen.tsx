@@ -24,7 +24,7 @@ export function NewMatchReportScreen({ core, navigate }: { core: ScoutingCore; n
         station,
         teamNumber: scheduledTeam === undefined ? Number(typedTeam) : undefined,
       });
-      navigate({ name: 'match-report', reportId: report.id });
+      navigate({ name: 'report', reportId: report.id });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }

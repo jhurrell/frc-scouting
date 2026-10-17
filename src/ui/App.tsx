@@ -4,14 +4,16 @@ import type { ScoutingCore } from '../core/scoutingCore';
 import { DeviceSetupScreen } from './DeviceSetupScreen';
 import { HomeScreen } from './HomeScreen';
 import { LoginScreen } from './LoginScreen';
-import { MatchReportForm } from './MatchReportForm';
 import { NewMatchReportScreen } from './NewMatchReportScreen';
+import { NewPitReportScreen } from './NewPitReportScreen';
+import { ReportForm } from './ReportForm';
 
 export type Screen =
   | { name: 'home' }
   | { name: 'device-setup' }
   | { name: 'new-match-report' }
-  | { name: 'match-report'; reportId: string };
+  | { name: 'new-pit-report' }
+  | { name: 'report'; reportId: string };
 
 export function App({ core }: { core: ScoutingCore }) {
   const [screen, setScreen] = useState<Screen>({ name: 'home' });
@@ -32,7 +34,9 @@ export function App({ core }: { core: ScoutingCore }) {
       return <HomeScreen core={core} navigate={setScreen} />;
     case 'new-match-report':
       return <NewMatchReportScreen core={core} navigate={setScreen} />;
-    case 'match-report':
-      return <MatchReportForm core={core} reportId={screen.reportId} navigate={setScreen} />;
+    case 'new-pit-report':
+      return <NewPitReportScreen core={core} bundle={state.bundle} navigate={setScreen} />;
+    case 'report':
+      return <ReportForm core={core} reportId={screen.reportId} navigate={setScreen} />;
   }
 }

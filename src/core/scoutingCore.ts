@@ -1,10 +1,10 @@
 import {
-  MATCH_STAGES,
   PIN_PATTERN,
   pinHashText,
   type Answer,
   type EventBundle,
   type MatchReport,
+  type PitReport,
   type Question,
   type ScheduledMatch,
   type Report,
@@ -14,7 +14,7 @@ import {
   type Station,
 } from '../shared/contract';
 import type { ScoutingDb, UploadRow } from './db';
-import { validateSeasonConfigs } from './seasonConfig';
+import { formSections, validateSeasonConfigs } from './seasonConfig';
 
 export class ScoutingError extends Error {}
 
@@ -39,6 +39,11 @@ export interface NewMatchReport {
   station: Station;
   /** Leave out to fill it in from the schedule. Needed when the schedule has no team for this match and Station. */
   teamNumber?: number;
+}
+
+export interface NewPitReport {
+  /** Chosen from the Event Bundle's team list, or typed for a team that isn't on it yet. */
+  teamNumber: number;
 }
 
 export interface ListedReport {
@@ -124,10 +129,7 @@ export function createScoutingCore({
   }
 
   function questionsFor(report: Report): Question[] {
-    const config = seasonConfigFor(report.configVersion);
-    return report.kind === 'match'
-      ? MATCH_STAGES.flatMap((stage) => config.match.stages[stage] ?? [])
-      : config.pit.groups.flatMap((g) => g.questions);
+    return formSections(seasonConfigFor(report.configVersion), report.kind).flatMap((section) => section.questions);
   }
 
   function findQuestion(report: Report, code: string): Question {
@@ -194,6 +196,41 @@ export function createScoutingCore({
       }
       await db.reports.put(changed);
     });
+  }
+
+  /** What every new Draft starts with: the current event, the logged-in Scout and the latest Season Config. */
+  async function draftBase() {
+    const bundle = await getEventBundle();
+    if (!bundle) throw new ScoutingError('No Event Bundle on this device yet');
+    const scout = await requireScout();
+    const timestamp = now().toISOString();
+    return {
+      bundle,
+      base: {
+        id: newId(),
+        eventKey: bundle.eventKey,
+        scoutId: scout.scoutId,
+        configVersion: latestConfig.version,
+        status: 'draft' as const,
+        voided: false,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        answers: {},
+      },
+    };
+  }
+
+  /** Saves a new Draft. Counters start at their minimum, so a counter always has an answer. */
+  async function addDraft<R extends Report>(report: R): Promise<R> {
+    for (const q of questionsFor(report)) {
+      if (q.type === 'counter') report.answers[q.code] = q.min ?? 0;
+    }
+    await db.reports.add(report);
+    return report;
+  }
+
+  function checkTeamNumber(teamNumber: number): void {
+    if (!Number.isInteger(teamNumber) || teamNumber < 1) throw new ScoutingError('Team number must be 1 or more');
   }
 
   async function getEventBundle(): Promise<EventBundle | undefined> {
@@ -266,9 +303,7 @@ export function createScoutingCore({
      * otherwise the Scout types it.
      */
     async startMatchReport({ matchNumber, station, teamNumber: typedTeam }: NewMatchReport): Promise<MatchReport> {
-      const bundle = await getEventBundle();
-      if (!bundle) throw new ScoutingError('No Event Bundle on this device yet');
-      const scout = await requireScout();
+      const { bundle, base } = await draftBase();
       if (!Number.isInteger(matchNumber) || matchNumber < 1) throw new ScoutingError('Match number must be 1 or more');
       const scheduledTeam = bundle.schedule.find((m) => m.matchNumber === matchNumber)?.stations[station];
       if (scheduledTeam !== undefined && typedTeam !== undefined && typedTeam !== scheduledTeam) {
@@ -278,30 +313,21 @@ export function createScoutingCore({
       if (teamNumber === undefined) {
         throw new ScoutingError(`The schedule has no team at ${station} in match ${matchNumber}. Enter the team number.`);
       }
-      if (!Number.isInteger(teamNumber) || teamNumber < 1) throw new ScoutingError('Team number must be 1 or more');
+      checkTeamNumber(teamNumber);
+      return addDraft<MatchReport>({ ...base, kind: 'match', matchNumber, station, teamNumber });
+    },
 
-      const timestamp = now().toISOString();
-      const report: MatchReport = {
-        id: newId(),
-        kind: 'match',
-        eventKey: bundle.eventKey,
-        scoutId: scout.scoutId,
-        configVersion: latestConfig.version,
-        status: 'draft',
-        voided: false,
-        createdAt: timestamp,
-        updatedAt: timestamp,
-        answers: {},
-        matchNumber,
-        station,
-        teamNumber,
-      };
-      // Counters start at their minimum, so a counter always has an answer.
-      for (const q of questionsFor(report)) {
-        if (q.type === 'counter') report.answers[q.code] = q.min ?? 0;
-      }
-      await db.reports.add(report);
-      return report;
+    /** Whether the latest Season Config asks any pit questions. A season without them has no Pit Reports. */
+    hasPitQuestions(): boolean {
+      return formSections(latestConfig, 'pit').length > 0;
+    },
+
+    /** Starts a Pit Report Draft for a team. It has no match or Station. */
+    async startPitReport({ teamNumber }: NewPitReport): Promise<PitReport> {
+      if (formSections(latestConfig, 'pit').length === 0) throw new ScoutingError('This season has no pit questions');
+      const { base } = await draftBase();
+      checkTeamNumber(teamNumber);
+      return addDraft<PitReport>({ ...base, kind: 'pit', teamNumber });
     },
 
     /** Sets an answer, replacing any earlier one. */

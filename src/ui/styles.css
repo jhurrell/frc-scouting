@@ -218,14 +218,16 @@ textarea {
 }
 
 fieldset.stations,
-fieldset.roster {
+fieldset.roster,
+fieldset.teams {
   margin: 0;
   padding: 0;
   border: none;
 }
 
 fieldset.stations legend,
-fieldset.roster legend {
+fieldset.roster legend,
+fieldset.teams legend {
   padding: 0;
   margin-bottom: 0.25rem;
 }
@@ -261,5 +263,15 @@ fieldset.roster legend {
 
 .stations .team {
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.teams .choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(4.5rem, 1fr));
+}
+
+.teams .choices button {
+  padding: 0;
   font-variant-numeric: tabular-nums;
 }
