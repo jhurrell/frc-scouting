@@ -22,6 +22,19 @@ export function HomeScreen({ core, navigate }: { core: ScoutingCore; navigate: (
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
 
+  async function refresh() {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const { eventKey, schedule, teams } = await core.refreshEventBundle();
+      setMessage({ text: `Downloaded ${eventKey}: ${teams.length} teams, ${schedule.length} qualification matches.`, error: false });
+    } catch (e) {
+      setMessage({ text: e instanceof Error ? e.message : String(e), error: true });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function uploadNow() {
     setBusy(true);
     setMessage(null);
@@ -41,7 +54,14 @@ export function HomeScreen({ core, navigate }: { core: ScoutingCore; navigate: (
     <main>
       <h1>Scouting</h1>
       <p className="muted">
-        {bundle ? `Event ${bundle.eventKey}` : 'No Event Bundle on this device yet'} ·{' '}
+        {bundle
+          ? `Event ${bundle.eventKey} · ${bundle.schedule.length} qualification matches`
+          : 'No Event Bundle on this device yet. Connect to the internet and choose Refresh.'}{' '}
+        ·{' '}
+        <button className="link" disabled={busy} onClick={refresh}>
+          Refresh
+        </button>{' '}
+        ·{' '}
         <button className="link" onClick={() => navigate({ name: 'device-setup' })}>
           Device setup
         </button>

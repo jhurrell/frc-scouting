@@ -82,8 +82,8 @@ export type Report = MatchReport | PitReport;
 
 export interface ScheduledMatch {
   matchNumber: number;
-  /** Team number at each Station. */
-  stations: Record<Station, number>;
+  /** Team number at each Station. A Station is missing when the schedule doesn't name a team for it. */
+  stations: Partial<Record<Station, number>>;
 }
 
 export interface RosterEntry {
@@ -102,7 +102,9 @@ export interface CoverageEntry {
 }
 
 export interface EventBundle {
+  /** The current event. New Reports take this event key. */
   eventKey: string;
+  /** Sorted team numbers. */
   teams: number[];
   /** Qualification matches only. */
   schedule: ScheduledMatch[];

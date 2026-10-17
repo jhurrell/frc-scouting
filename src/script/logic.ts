@@ -7,6 +7,7 @@ import {
   type Answer,
   type EventBundle,
   type Report,
+  type ScheduledMatch,
   type ScriptRequest,
   type ScriptResponse,
   type UploadOutcome,
@@ -20,9 +21,19 @@ export type Table = Cell[][];
 export interface SpreadsheetPort {
   /** A tab of the Season Sheet, the spreadsheet the script is bound to. */
   readSeasonTab(tab: string): Table;
+  /** Replaces the tab's contents with the table, creating the tab if needed. */
+  writeSeasonTab(tab: string, table: Table): void;
   readEventTab(eventSheetId: string, tab: string): Table;
-  /** Writes the whole table into the tab from A1, creating the tab if needed. */
+  /** Replaces the tab's contents with the table, creating the tab if needed. */
   writeEventTab(eventSheetId: string, tab: string, table: Table): void;
+  /** Creates an empty Event Sheet next to the Season Sheet and returns its ID. */
+  createEventSheet(name: string): string;
+}
+
+/** The Blue Alliance's read API (v3). */
+export interface TbaPort {
+  /** The parsed JSON at the path, for example "/event/2026nyro/simple", or null when TBA answers "not found". */
+  get(path: string): unknown;
 }
 
 export interface ScriptSecrets {
@@ -30,9 +41,18 @@ export interface ScriptSecrets {
   accessCode: string | null;
 }
 
+/** A problem to show an Admin, as opposed to a bug. */
+export class ScriptError extends Error {}
+
 export const SEASON_TABS = { settings: 'Settings', events: 'Events' } as const;
+export const EVENT_TABS = { schedule: 'Schedule', teams: 'Teams' } as const;
 export const REPORT_TABS = { match: 'Match Reports', pit: 'Pit Reports' } as const;
 export const CURRENT_EVENT_SETTING = 'Current event';
+
+const SETTINGS_HEADER = ['Setting', 'Value'];
+const EVENTS_HEADER = ['Event key', 'Event Sheet ID'];
+const SCHEDULE_HEADER = ['Match', ...STATIONS];
+const TEAMS_HEADER = ['Team'];
 
 /** Fixed columns at the left of every Report tab. Question-code columns follow. */
 export const METADATA_COLUMNS = [
@@ -70,10 +90,13 @@ export function handleRequest(rawBody: string, port: SpreadsheetPort, secrets: S
   }
 
   switch (request.action) {
-    case 'event-bundle': {
-      const bundle = buildEventBundle(port);
-      return typeof bundle === 'string' ? { ok: false, error: bundle } : { ok: true, bundle };
-    }
+    case 'event-bundle':
+      try {
+        return { ok: true, bundle: buildEventBundle(port) };
+      } catch (error) {
+        if (error instanceof ScriptError) return { ok: false, error: error.message };
+        throw error;
+      }
     case 'upload':
       if (!Array.isArray(request.reports)) return { ok: false, error: 'An upload needs a list of Reports' };
       return { ok: true, outcomes: uploadReports(request.reports, port, now) };
@@ -94,12 +117,174 @@ function readKeyValueTab(table: Table): Map<string, string> {
   );
 }
 
-/** The Event Bundle for the current event, or an error message. */
-export function buildEventBundle(port: SpreadsheetPort): EventBundle | string {
+/** Sets the key's value in a two-column tab, adding the header and the row if needed. */
+function withKeyValue(table: Table, header: string[], key: string, value: string): Table {
+  const result = table.length > 0 ? table.map((row) => [...row]) : [header];
+  const row = result.slice(1).find((r) => String(r[0] ?? '').trim() === key);
+  if (row) row[1] = value;
+  else result.push([key, value]);
+  return rectangular(result);
+}
+
+/** Pads every row to the widest one, as Sheets needs. */
+function rectangular(table: Table): Table {
+  const width = Math.max(0, ...table.map((row) => row.length));
+  return table.map((row) => Array.from({ length: width }, (_, i) => row[i] ?? ''));
+}
+
+/** A cell holding a team or match number, or null. */
+function wholeNumber(cell: Cell | undefined): number | null {
+  const n = typeof cell === 'string' && /^\s*\d+\s*$/.test(cell) ? Number(cell) : cell;
+  return typeof n === 'number' && Number.isInteger(n) && n >= 1 ? n : null;
+}
+
+function currentEvent(port: SpreadsheetPort): { eventKey: string; eventSheetId: string } {
   const eventKey = readKeyValueTab(port.readSeasonTab(SEASON_TABS.settings)).get(CURRENT_EVENT_SETTING);
-  if (!eventKey) return `No current event. Set "${CURRENT_EVENT_SETTING}" in the Season Sheet's ${SEASON_TABS.settings} tab.`;
-  // The schedule, teams, roster and Coverage arrive in tickets 04, 05 and 10.
-  return { eventKey, teams: [], schedule: [], roster: [], coverage: [] };
+  if (!eventKey) {
+    throw new ScriptError(`No current event. Set "${CURRENT_EVENT_SETTING}" in the Season Sheet's ${SEASON_TABS.settings} tab.`);
+  }
+  const eventSheetId = readKeyValueTab(port.readSeasonTab(SEASON_TABS.events)).get(eventKey);
+  if (!eventSheetId) {
+    throw new ScriptError(`The current event ${eventKey} isn't in the ${SEASON_TABS.events} tab. Choose Scouting → Create event.`);
+  }
+  return { eventKey, eventSheetId };
+}
+
+/** Reads the Schedule tab by its header, so an Admin can fill it in or fix it by hand. */
+function readSchedule(table: Table): ScheduledMatch[] {
+  const [header = [], ...rows] = table;
+  const matchColumn = header.indexOf('Match');
+  if (matchColumn === -1) return [];
+  const schedule: ScheduledMatch[] = [];
+  for (const row of rows) {
+    const matchNumber = wholeNumber(row[matchColumn]);
+    if (matchNumber === null) continue;
+    const stations: ScheduledMatch['stations'] = {};
+    for (const station of STATIONS) {
+      const team = wholeNumber(row[header.indexOf(station)]);
+      if (team !== null) stations[station] = team;
+    }
+    schedule.push({ matchNumber, stations });
+  }
+  return schedule.sort((a, b) => a.matchNumber - b.matchNumber);
+}
+
+/** The event's teams: everyone in the Teams tab, plus anyone in the schedule who is missing from it. */
+function readTeams(table: Table, schedule: ScheduledMatch[]): number[] {
+  const teams = new Set(table.slice(1).map((row) => wholeNumber(row[0])).filter((n) => n !== null));
+  for (const match of schedule) for (const team of Object.values(match.stations)) teams.add(team);
+  return [...teams].sort((a, b) => a - b);
+}
+
+/** The Event Bundle for the current event. */
+export function buildEventBundle(port: SpreadsheetPort): EventBundle {
+  const { eventKey, eventSheetId } = currentEvent(port);
+  const schedule = readSchedule(port.readEventTab(eventSheetId, EVENT_TABS.schedule));
+  const teams = readTeams(port.readEventTab(eventSheetId, EVENT_TABS.teams), schedule);
+  // The roster and Coverage arrive in tickets 05 and 10.
+  return { eventKey, teams, schedule, roster: [], coverage: [] };
+}
+
+// ---- Admin menu ----
+
+/** The event key an Admin typed, cleaned up. Event keys are TBA's: the year, then a short code, like 2026nyro. */
+export function eventKeyFrom(typed: string): string {
+  const eventKey = typed.trim().toLowerCase();
+  if (!/^\d{4}[a-z0-9]+$/.test(eventKey)) {
+    throw new ScriptError(`"${typed.trim()}" isn't an event key. Event keys look like 2026nyro.`);
+  }
+  return eventKey;
+}
+
+export function tbaKnowsEvent(eventKey: string, tba: TbaPort): boolean {
+  return tba.get(`/event/${eventKey}/simple`) !== null;
+}
+
+/** TBA team keys such as "frc578". Keys with a letter suffix (B teams at off-season events) give null. */
+function teamFromKey(key: unknown): number | null {
+  const match = typeof key === 'string' ? /^frc(\d+)$/.exec(key) : null;
+  return match ? Number(match[1]) : null;
+}
+
+/** Qualification matches from TBA's /event/{key}/matches/simple. Playoffs are entered by hand. */
+export function qualificationSchedule(tbaMatches: unknown): ScheduledMatch[] {
+  if (!Array.isArray(tbaMatches)) return [];
+  type TbaMatch = { comp_level?: unknown; match_number?: unknown; alliances?: Record<string, { team_keys?: unknown }> };
+  return (tbaMatches as TbaMatch[])
+    .filter((m) => m.comp_level === 'qm' && typeof m.match_number === 'number')
+    .map((m) => {
+      const stations: ScheduledMatch['stations'] = {};
+      for (const [colour, prefix] of [['red', 'Red'], ['blue', 'Blue']] as const) {
+        const keys = m.alliances?.[colour]?.team_keys;
+        (Array.isArray(keys) ? keys : []).slice(0, 3).forEach((key, i) => {
+          const team = teamFromKey(key);
+          if (team !== null) stations[`${prefix} ${i + 1}` as keyof ScheduledMatch['stations']] = team;
+        });
+      }
+      return { matchNumber: m.match_number as number, stations };
+    })
+    .sort((a, b) => a.matchNumber - b.matchNumber);
+}
+
+function scheduleTable(schedule: ScheduledMatch[]): Table {
+  return [SCHEDULE_HEADER, ...schedule.map((m) => [m.matchNumber, ...STATIONS.map((s) => m.stations[s] ?? '')])];
+}
+
+/**
+ * Fetches the team list and qualification schedule from TBA into the Event Sheet. Each tab is replaced only when TBA
+ * has something for it, so a schedule an Admin typed in for an event TBA doesn't cover is never wiped.
+ */
+function fetchFromTba(eventKey: string, eventSheetId: string, port: SpreadsheetPort, tba: TbaPort): string {
+  const teamKeys = tba.get(`/event/${eventKey}/teams/keys`);
+  const teams = (Array.isArray(teamKeys) ? teamKeys : [])
+    .map(teamFromKey)
+    .filter((n) => n !== null)
+    .sort((a, b) => a - b);
+  const schedule = qualificationSchedule(tba.get(`/event/${eventKey}/matches/simple`));
+
+  const replace = (tab: string, table: Table, fresh: boolean) => {
+    if (fresh || port.readEventTab(eventSheetId, tab).length === 0) port.writeEventTab(eventSheetId, tab, table);
+  };
+  replace(EVENT_TABS.teams, [TEAMS_HEADER, ...teams.map((t) => [t])], teams.length > 0);
+  replace(EVENT_TABS.schedule, scheduleTable(schedule), schedule.length > 0);
+
+  return [
+    teams.length > 0 ? `Fetched ${teams.length} teams from TBA.` : 'TBA has no team list for this event yet.',
+    schedule.length > 0
+      ? `Fetched ${schedule.length} qualification matches.`
+      : 'TBA has no qualification schedule yet. Choose Scouting → Refresh schedule once it is published, or type it into the Schedule tab.',
+  ].join(' ');
+}
+
+/**
+ * "Create event": makes the event's Event Sheet, records it in the Events tab, fetches the schedule and team list,
+ * and makes the event current. Running it again for an event that already has an Event Sheet reuses that sheet.
+ * Returns a message for the Admin.
+ */
+export function createEvent(typedKey: string, port: SpreadsheetPort, tba: TbaPort): string {
+  const eventKey = eventKeyFrom(typedKey);
+  const events = port.readSeasonTab(SEASON_TABS.events);
+  let eventSheetId = readKeyValueTab(events).get(eventKey);
+  const existed = eventSheetId !== undefined;
+  if (!eventSheetId) {
+    eventSheetId = port.createEventSheet(`Scouting ${eventKey}`);
+    port.writeSeasonTab(SEASON_TABS.events, withKeyValue(events, EVENTS_HEADER, eventKey, eventSheetId));
+  }
+  const fetched = fetchFromTba(eventKey, eventSheetId, port, tba);
+  const settings = port.readSeasonTab(SEASON_TABS.settings);
+  port.writeSeasonTab(SEASON_TABS.settings, withKeyValue(settings, SETTINGS_HEADER, CURRENT_EVENT_SETTING, eventKey));
+
+  return [
+    existed ? `${eventKey} already had an Event Sheet, so it was reused.` : `Created the Event Sheet "Scouting ${eventKey}".`,
+    fetched,
+    `${eventKey} is now the current event. Devices pick it up the next time they refresh.`,
+  ].join('\n\n');
+}
+
+/** "Refresh schedule": fetches the current event's schedule and team list again. Returns a message for the Admin. */
+export function refreshSchedule(port: SpreadsheetPort, tba: TbaPort): string {
+  const { eventKey, eventSheetId } = currentEvent(port);
+  return `${eventKey}: ${fetchFromTba(eventKey, eventSheetId, port, tba)}`;
 }
 
 // ---- Uploads ----

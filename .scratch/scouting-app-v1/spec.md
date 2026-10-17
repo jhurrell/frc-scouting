@@ -230,7 +230,7 @@ A new, small, local-first scouting app that students can maintain, used for Matc
   - building the Event Bundle, including PIN hashing
   - building the Coverage snapshot
 - **Season Sheet tabs:** Settings (current event), Scouts (ID, name, PIN) and Events (event key, Event Sheet ID).
-- **Event Sheet tabs:** Schedule, Match Reports and Pit Reports.
+- **Event Sheet tabs:** Schedule, Teams, Match Reports and Pit Reports. The Teams tab exists because the team list is published before the schedule, and Pit Scouting starts before qualification matches.
 - **Report columns:**
   - fixed metadata columns first: Report ID, event key, kind, match number, Station, team number, Scout ID, Scout name, config version, Void, created, updated, uploaded at, and uploaded via (device or Hub)
   - then one column per question code, in order of first appearance

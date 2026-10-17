@@ -7,6 +7,8 @@
   --border: #d9d9d9;
   --draft: #8a6d00;
   --complete: #1d6b2f;
+  --red-alliance: #c8102e;
+  --blue-alliance: #0057b8;
   font-family: system-ui, sans-serif;
   color: var(--fg);
   background: var(--bg);
@@ -207,5 +209,50 @@ textarea {
 .counter output {
   text-align: center;
   font-size: 1.4rem;
+  font-variant-numeric: tabular-nums;
+}
+
+fieldset.stations {
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+fieldset.stations legend {
+  padding: 0;
+  margin-bottom: 0.25rem;
+}
+
+.stations .choices {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.stations .choices button {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0.4rem;
+  border-width: 2px;
+}
+
+.stations button.red {
+  border-color: var(--red-alliance);
+}
+
+.stations button.blue {
+  border-color: var(--blue-alliance);
+}
+
+.stations button.red[aria-checked='true'] {
+  background: var(--red-alliance);
+}
+
+.stations button.blue[aria-checked='true'] {
+  background: var(--blue-alliance);
+}
+
+.stations .team {
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }

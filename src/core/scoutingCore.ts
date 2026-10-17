@@ -4,6 +4,7 @@ import {
   type EventBundle,
   type MatchReport,
   type Question,
+  type ScheduledMatch,
   type Report,
   type SeasonConfig,
   type SheetGateway,
@@ -33,7 +34,8 @@ export interface ScoutingCoreDeps {
 export interface NewMatchReport {
   matchNumber: number;
   station: Station;
-  teamNumber: number;
+  /** Leave out to fill it in from the schedule. Needed when the schedule has no team for this match and Station. */
+  teamNumber?: number;
 }
 
 export interface ListedReport {
@@ -190,10 +192,27 @@ export function createScoutingCore({
 
     getEventBundle,
 
-    async startMatchReport({ matchNumber, station, teamNumber }: NewMatchReport): Promise<MatchReport> {
+    /** The qualification match from the Event Bundle's schedule, or undefined for playoffs, practice and unscheduled matches. */
+    async scheduledMatch(matchNumber: number): Promise<ScheduledMatch | undefined> {
+      return (await getEventBundle())?.schedule.find((m) => m.matchNumber === matchNumber);
+    },
+
+    /**
+     * Starts a Draft. The team number comes from the schedule when the schedule names one for this match and Station;
+     * otherwise the Scout types it.
+     */
+    async startMatchReport({ matchNumber, station, teamNumber: typedTeam }: NewMatchReport): Promise<MatchReport> {
       const bundle = await getEventBundle();
       if (!bundle) throw new ScoutingError('No Event Bundle on this device yet');
       if (!Number.isInteger(matchNumber) || matchNumber < 1) throw new ScoutingError('Match number must be 1 or more');
+      const scheduledTeam = bundle.schedule.find((m) => m.matchNumber === matchNumber)?.stations[station];
+      if (scheduledTeam !== undefined && typedTeam !== undefined && typedTeam !== scheduledTeam) {
+        throw new ScoutingError(`The schedule has Team ${scheduledTeam} at ${station} in match ${matchNumber}`);
+      }
+      const teamNumber = typedTeam ?? scheduledTeam;
+      if (teamNumber === undefined) {
+        throw new ScoutingError(`The schedule has no team at ${station} in match ${matchNumber}. Enter the team number.`);
+      }
       if (!Number.isInteger(teamNumber) || teamNumber < 1) throw new ScoutingError('Team number must be 1 or more');
 
       const timestamp = now().toISOString();
