@@ -148,7 +148,7 @@ A new, small, local-first scouting app that students can maintain, used for Matc
   - a label
   - a type: counter, yes/no, single choice, multiple choice, number or free text
   - a required flag
-  - options, for the choice types
+  - options, for the choice types. A multiple-choice option can't contain a comma, because the Sheet separates selections with commas.
   - optional min/max, for counter and number
 - The config is validated when loaded. Codes must be unique across a version, and a code that is reused across versions must keep its type.
 

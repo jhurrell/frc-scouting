@@ -48,6 +48,9 @@ function checkQuestion(raw: unknown, where: string, problems: string[]): void {
       problems.push(`${at}: a ${type} question needs a list of options`);
     } else if (new Set(options).size !== options.length) {
       problems.push(`${at}: options must not repeat`);
+    } else if (type === 'multiple-choice' && options.some((o) => o.includes(','))) {
+      // The Sheet writes the selections in one cell, separated by commas.
+      problems.push(`${at}: multiple-choice options must not contain commas`);
     }
   } else if (raw.options !== undefined) {
     problems.push(`${at}: only choice questions have options`);

@@ -178,6 +178,13 @@ describe('Season Config validation', () => {
     expect(problemsFor([withTeleop([question({ type: 'multiple-choice', options: [] })])]).join()).toMatch(/needs a list of options/);
   });
 
+  it('rejects a comma in a multiple-choice option, which would be ambiguous in the Sheet', () => {
+    expect(problemsFor([withTeleop([question({ type: 'multiple-choice', options: ['Park', 'Climb, deep'] })])]).join()).toMatch(
+      /must not contain commas/,
+    );
+    expect(problemsFor([withTeleop([question({ type: 'single-choice', options: ['Left, near wall', 'Right'] })])])).toEqual([]);
+  });
+
   it('rejects a match question outside the Match Stages', () => {
     const raw = { ...(withTeleop([]) as object), match: { stages: { Auto: [question()] } } };
     expect(problemsFor([raw]).join()).toMatch(/"Auto" is not a Match Stage/);
