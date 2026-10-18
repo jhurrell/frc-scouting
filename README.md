@@ -25,9 +25,8 @@ The words used here (Scout, Station, Match Report, Hub, Upload, Void and so on) 
 
 ## Status
 
-Version 1 is still in progress. Everything below works except:
+Version 1 is nearly done. The app is at **https://jhurrell.github.io/frc-scouting/** once GitHub Pages is set up (see [docs/deploy.md](docs/deploy.md)). Still to do:
 
-- **Install and hosting:** you can't yet install the app to a phone's home screen, and it isn't hosted anywhere yet. For now, run it from a laptop with `npm run dev` (see [Running it locally](#running-it-locally)). Ticket 12 adds offline install and deployment to GitHub Pages.
 - **Final season questions:** the 2026 Rebuilt questions ship as version 3 of the `demo` season. Ticket 13 settles the season's name and adds a test that a Report always fits in a QR code.
 
 The tickets are in `.scratch/scouting-app-v1/issues/`.
@@ -74,7 +73,12 @@ For an event TBA doesn't cover, such as a scrimmage, you can type the schedule i
 
 ### Setting up a device
 
-Open the app, enter the access code on the **Device setup** screen and choose **Save and download the Event Bundle**. Do this once per device. Don't give the access code to Scouts.
+1. Install the app to the home screen first (see [Installing on a phone](docs/deploy.md#installing-on-a-phone)). On an iPhone, the installed app doesn't share storage with Safari.
+2. Open it from the home screen, enter the access code on the **Device setup** screen and choose **Save and download the Event Bundle**.
+
+Do this once per device. Don't give the access code to Scouts. After that, the app opens and works with no connection.
+
+When a new version of the app is deployed, it offers **Update now** between Reports, never in the middle of one.
 
 ### Running a Hub
 
@@ -120,6 +124,7 @@ VITE_SCRIPT_URL=https://script.google.com/macros/s/…/exec
 | `npm run test:watch`   | Reruns tests as you edit.                                                            |
 | `npm run typecheck`    | Checks types without building.                                                       |
 | `npm run build`        | Builds the app into `dist/`. It needs `VITE_SCRIPT_URL` set.                         |
+| `npx vite preview`     | Serves the build from `dist/`, with offline support, at `localhost`.                 |
 | `npm run build:script` | Builds the Apps Script into `dist-script/Code.js`, to paste into the Season Sheet.   |
 
 Run `npm test` and `npm run typecheck` before every commit.
@@ -135,9 +140,13 @@ src/
   script/      The Apps Script. logic.ts is plain, tested code; appsScriptAdapter.ts is the thin layer that
                touches real Google Sheets, which is checked by hand.
   shared/      contract.ts: the types and rules the app and the script both use.
+  pwa/         Offline support: the service worker, the build step that lists the files it keeps, and update checks.
   seasons/     The Season Config: the questions, one JSON file per version.
   dev/         The made-up event used by the dev fake.
+public/                  Files copied into the build as they are: the web manifest and the icons.
+.github/workflows/       deploy.yml: tests, builds and publishes the app to GitHub Pages on every push to main.
 docs/
+  deploy.md              GitHub Pages setup, installing on phones, and how updates reach them.
   season-config.md       How to change the questions.
   apps-script-setup.md   Installing and updating the script, and the manual check list.
   adr/                   Why the big decisions were made.
@@ -147,10 +156,12 @@ GLOSSARY.md              What each word means. Use these words in code, UI text 
 
 ### Common jobs
 
+- **Release a change:** push to `main`. The Deploy action tests, builds and publishes it, and phones offer the update between Reports (see [docs/deploy.md](docs/deploy.md)). If the tests fail, nothing is published.
 - **Change the questions:** follow [docs/season-config.md](docs/season-config.md). Never edit a version that has shipped; add a new version. `npm test` stops you if you edit an old one.
 - **Start a new season:** see [A new season](docs/season-config.md#a-new-season).
 - **Change the Apps Script:** edit `src/script/`, run `npm test`, then `npm run build:script`. Paste `dist-script/Code.js` into the script editor and deploy a new version of the existing deployment, so the URL stays the same. Run the manual check in [docs/apps-script-setup.md](docs/apps-script-setup.md) against a **test** Season Sheet first.
 - **Change a screen:** the logic belongs in `src/core/` with a test. Keep the screen in `src/ui/` thin. Then try it in a real browser, because the tests run on a fake IndexedDB and can miss real-browser bugs.
+- **Change offline support:** after editing `src/pwa/`, check a build with `npx vite preview`: load it, stop the server, reload, and check the app still works. Then build again with a change and check that **Update now** appears on the home screen but not while a Report is open.
 
 ### Rules that keep it safe
 

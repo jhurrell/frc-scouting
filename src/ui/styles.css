@@ -46,8 +46,9 @@ main {
   padding: 1rem;
 }
 
-/* The Upload status line above every screen. */
-.upload-status {
+/* The Upload status line above every screen, and the offer of a new version under it. */
+.upload-status,
+.update-offer {
   max-width: 40rem;
   margin: 0 auto;
   padding: 0.5rem 1rem;

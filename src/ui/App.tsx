@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useState } from 'react';
 import type { EventBundle, RosterEntry } from '../shared/contract';
 import type { ScoutingCore } from '../core/scoutingCore';
+import type { AppUpdates } from '../pwa/appUpdates';
 import { CoverageScreen } from './CoverageScreen';
 import { DeviceSetupScreen } from './DeviceSetupScreen';
 import { HomeScreen } from './HomeScreen';
@@ -11,6 +12,7 @@ import { NewMatchReportScreen } from './NewMatchReportScreen';
 import { NewPitReportScreen } from './NewPitReportScreen';
 import { QrScreen } from './QrScreen';
 import { ReportForm } from './ReportForm';
+import { UpdateOffer } from './UpdateOffer';
 import { UploadStatusLine } from './UploadStatusLine';
 
 export type Screen =
@@ -23,13 +25,16 @@ export type Screen =
   | { name: 'hub' }
   | { name: 'coverage' };
 
+/** Screens where a Report is being started, filled in or handed off. A new version is never offered on these. */
+const REPORT_SCREENS: Screen['name'][] = ['new-match-report', 'new-pit-report', 'report', 'qr'];
+
 interface DeviceState {
   hasAccessCode: boolean;
   bundle: EventBundle | undefined;
   scout: RosterEntry | undefined;
 }
 
-export function App({ core }: { core: ScoutingCore }) {
+export function App({ core, updates }: { core: ScoutingCore; updates: AppUpdates }) {
   const [screen, setScreen] = useState<Screen>({ name: 'home' });
   const state = useLiveQuery(
     async (): Promise<DeviceState> => ({
@@ -43,6 +48,7 @@ export function App({ core }: { core: ScoutingCore }) {
   return (
     <>
       <UploadStatusLine core={core} />
+      {!REPORT_SCREENS.includes(screen.name) && <UpdateOffer updates={updates} />}
       <CurrentScreen core={core} state={state} screen={screen} navigate={setScreen} />
     </>
   );

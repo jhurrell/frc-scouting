@@ -5,6 +5,7 @@ import { createScoutingCore, type Network } from './core/scoutingCore';
 import { demoEventBundle } from './dev/demoEventBundle';
 import { FakeSheetGateway } from './gateway/fakeSheetGateway';
 import { HttpSheetGateway } from './gateway/httpSheetGateway';
+import { noUpdates, registerServiceWorker } from './pwa/appUpdates';
 import { seasonConfigs } from './seasons';
 import type { SheetGateway } from './shared/contract';
 import { App } from './ui/App';
@@ -33,8 +34,12 @@ core
   .catch((error) => console.warn('Could not refresh the Event Bundle', error));
 void core.uploadInBackground();
 
+// The built app works offline through a service worker. Local development doesn't use one, so edits show at once.
+// Browsers only allow service workers on HTTPS or localhost.
+const updates = import.meta.env.PROD && 'serviceWorker' in navigator ? registerServiceWorker('./sw.js') : noUpdates;
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App core={core} />
+    <App core={core} updates={updates} />
   </StrictMode>,
 );

@@ -1,0 +1,52 @@
+# Builds the app and publishes it to GitHub Pages on every push to main. See docs/deploy.md for the one-time setup.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time. A newer push waits rather than cancelling one that is half published.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - name: Build
+        env:
+          # A repository variable, not part of the code. The access code is what protects the Sheets.
+          VITE_SCRIPT_URL: ${{ vars.VITE_SCRIPT_URL }}
+        run: |
+          if [ -z "$VITE_SCRIPT_URL" ]; then
+            echo "::error::Set the VITE_SCRIPT_URL repository variable to the Apps Script web app URL. See docs/deploy.md."
+            exit 1
+          fi
+          npm run build
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
