@@ -502,6 +502,67 @@ describe('uploading Reports', () => {
   });
 });
 
+describe('Coverage snapshot', () => {
+  it('is empty before any Match Report is Uploaded', () => {
+    expect(bundle().coverage).toEqual([]);
+  });
+
+  it('counts the Match Reports for each match and Station, in match then Station order', () => {
+    upload(
+      matchReport({ id: 'r1', matchNumber: 12, station: 'Blue 2' }),
+      matchReport({ id: 'r2', matchNumber: 3, station: 'Blue 1' }),
+      matchReport({ id: 'r3', matchNumber: 3, station: 'Red 2' }),
+    );
+    expect(bundle().coverage).toEqual([
+      { matchNumber: 3, station: 'Red 2', count: 1 },
+      { matchNumber: 3, station: 'Blue 1', count: 1 },
+      { matchNumber: 12, station: 'Blue 2', count: 1 },
+    ]);
+  });
+
+  it('counts two Scouts on the same Station twice', () => {
+    upload(matchReport({ id: 'r1', scoutId: 's1' }), matchReport({ id: 'r2', scoutId: 's2' }));
+    expect(bundle().coverage).toEqual([{ matchNumber: 12, station: 'Blue 2', count: 2 }]);
+  });
+
+  it('counts an edited Report once', () => {
+    upload(matchReport({ updatedAt: '2026-10-16T12:05:00.000Z' }));
+    upload(matchReport({ updatedAt: '2026-10-16T12:30:00.000Z' }));
+    expect(bundle().coverage).toEqual([{ matchNumber: 12, station: 'Blue 2', count: 1 }]);
+  });
+
+  it('leaves out Reports Voided by a device or by an Admin in the Sheet', () => {
+    upload(
+      matchReport({ id: 'r1', voided: true }),
+      matchReport({ id: 'r2', station: 'Red 1' }),
+      matchReport({ id: 'r3', station: 'Red 3' }),
+    );
+    const table = port.readEventTab(EVENT_SHEET, REPORT_TABS.match);
+    const [header] = table;
+    table.find((row) => row[header.indexOf('Report ID')] === 'r2')![header.indexOf('Void')] = 'x';
+    port.writeEventTab(EVENT_SHEET, REPORT_TABS.match, table);
+
+    expect(bundle().coverage).toEqual([{ matchNumber: 12, station: 'Red 3', count: 1 }]);
+  });
+
+  it('skips rows an Admin left without a usable match number or Station', () => {
+    upload(matchReport({ id: 'r1' }));
+    const table = port.readEventTab(EVENT_SHEET, REPORT_TABS.match);
+    const [header] = table;
+    const blankRow = header.map(() => '');
+    const badStation = [...table[1]];
+    badStation[header.indexOf('Station')] = 'Green 1';
+    port.writeEventTab(EVENT_SHEET, REPORT_TABS.match, [...table, blankRow, badStation]);
+
+    expect(bundle().coverage).toEqual([{ matchNumber: 12, station: 'Blue 2', count: 1 }]);
+  });
+
+  it('leaves out Pit Reports', () => {
+    upload({ ...matchReport({ id: 'p1' }), kind: 'pit', matchNumber: undefined, station: undefined });
+    expect(bundle().coverage).toEqual([]);
+  });
+});
+
 describe('corrections', () => {
   const earlier = '2026-10-16T12:05:00.000Z';
   const later = '2026-10-16T12:30:00.000Z';

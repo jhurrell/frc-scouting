@@ -9,6 +9,9 @@
   --complete: #1d6b2f;
   --red-alliance: #c8102e;
   --blue-alliance: #0057b8;
+  --gap: #e6e6e6;
+  --covered: #d7efdd;
+  --duplicate: #ffe08a;
   font-family: system-ui, sans-serif;
   color: var(--fg);
   background: var(--bg);
@@ -22,6 +25,9 @@
     --border: #3a3a3a;
     --draft: #e0b400;
     --complete: #5ccf7a;
+    --gap: #2a2a2a;
+    --covered: #1c4428;
+    --duplicate: #6b5200;
   }
 }
 
@@ -338,4 +344,73 @@ fieldset.teams legend {
   gap: 1rem;
   padding: 0.8rem 0;
   border-bottom: 1px solid var(--border);
+}
+
+/* Coverage. */
+.coverage-source {
+  padding: 0.6rem 0.9rem;
+  border-left: 4px solid var(--complete);
+}
+
+.coverage-source.local {
+  border-left-color: var(--draft);
+  background: var(--duplicate);
+  color: var(--fg);
+}
+
+table.coverage {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 2px;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85rem;
+}
+
+.coverage thead th {
+  position: sticky;
+  top: 0;
+  padding: 0.3rem 0;
+  background: var(--bg);
+}
+
+.coverage thead th:first-child {
+  width: 3rem;
+}
+
+.coverage th.red {
+  color: var(--red-alliance);
+}
+
+.coverage th.blue {
+  color: var(--blue-alliance);
+}
+
+.coverage td {
+  padding: 0.35rem 0;
+  text-align: center;
+  border-radius: 0.25rem;
+}
+
+.coverage td.gap {
+  background: var(--gap);
+  color: var(--muted);
+}
+
+.coverage td.covered {
+  background: var(--covered);
+}
+
+.coverage td.duplicate {
+  background: var(--duplicate);
+  font-weight: 600;
+}
+
+.coverage .count {
+  font-size: 0.7em;
+  line-height: 0;
+}
+
+.coverage .unscheduled {
+  color: var(--muted);
 }

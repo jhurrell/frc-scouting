@@ -109,6 +109,22 @@ export interface CoverageEntry {
   count: number;
 }
 
+/**
+ * Coverage counts: one entry per match and Station with at least one non-Void Match Report, in match then Station
+ * order. The script, the fake gateway and the device's local Coverage all count with this, so they agree.
+ */
+export function countCoverage(reports: Iterable<{ matchNumber: number; station: Station; voided: boolean }>): CoverageEntry[] {
+  const counts = new Map<string, CoverageEntry>();
+  for (const { matchNumber, station, voided } of reports) {
+    if (voided) continue;
+    const key = `${matchNumber}|${station}`;
+    const entry = counts.get(key) ?? { matchNumber, station, count: 0 };
+    entry.count += 1;
+    counts.set(key, entry);
+  }
+  return [...counts.values()].sort((a, b) => a.matchNumber - b.matchNumber || STATIONS.indexOf(a.station) - STATIONS.indexOf(b.station));
+}
+
 export interface EventBundle {
   /** The current event. New Reports take this event key. */
   eventKey: string;
@@ -117,6 +133,7 @@ export interface EventBundle {
   /** Qualification matches only. */
   schedule: ScheduledMatch[];
   roster: RosterEntry[];
+  /** A snapshot of Coverage from every Match Report Uploaded for the event, taken when the bundle was built. */
   coverage: CoverageEntry[];
 }
 

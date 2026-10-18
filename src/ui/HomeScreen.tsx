@@ -94,9 +94,14 @@ export function HomeScreen({ core, navigate }: { core: ScoutingCore; navigate: (
         {busy ? 'Uploading…' : 'Upload now'}
       </button>
       {scout && (
-        <button className="secondary" onClick={() => navigate({ name: 'hub' })}>
-          Hub: collect Reports by QR
-        </button>
+        <>
+          <button className="secondary" onClick={() => navigate({ name: 'coverage' })}>
+            Coverage
+          </button>
+          <button className="secondary" onClick={() => navigate({ name: 'hub' })}>
+            Hub: collect Reports by QR
+          </button>
+        </>
       )}
       {message && <p className={message.error ? 'error' : 'muted'}>{message.text}</p>}
 

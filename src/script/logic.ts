@@ -3,16 +3,19 @@
 // See ADR 0001 and the spec's "Upload rules".
 
 import {
+  countCoverage,
   PIN_PATTERN,
   pinHashText,
   STATIONS,
   type Answer,
+  type CoverageEntry,
   type EventBundle,
   type Report,
   type RosterEntry,
   type ScheduledMatch,
   type ScriptRequest,
   type ScriptResponse,
+  type Station,
   type UploadOutcome,
 } from '../shared/contract';
 
@@ -251,8 +254,26 @@ export function buildEventBundle(port: SpreadsheetPort, crypto: ScriptCrypto): E
   const schedule = readSchedule(port.readEventTab(eventSheetId, EVENT_TABS.schedule));
   const teams = readTeams(port.readEventTab(eventSheetId, EVENT_TABS.teams), schedule);
   const roster = rosterFrom(readScouts(port.readSeasonTab(SEASON_TABS.scouts)), crypto);
-  // Coverage arrives in ticket 10.
-  return { eventKey, teams, schedule, roster, coverage: [] };
+  const coverage = coverageFrom(port.readEventTab(eventSheetId, REPORT_TABS.match));
+  return { eventKey, teams, schedule, roster, coverage };
+}
+
+/**
+ * The Coverage snapshot from the Match Reports tab, read by its header. A Void an Admin ticked or typed counts as
+ * Void, and rows without a usable match number or Station are skipped.
+ */
+function coverageFrom(table: Table): CoverageEntry[] {
+  const [header = [], ...rows] = table;
+  const [matchColumn, stationColumn, voidColumn] = ['Match', 'Station', 'Void'].map((name) => header.indexOf(name));
+  if (matchColumn === -1 || stationColumn === -1) return [];
+  return countCoverage(
+    rows.flatMap((row) => {
+      const matchNumber = wholeNumber(row[matchColumn]);
+      const station = String(row[stationColumn] ?? '').trim() as Station;
+      if (matchNumber === null || !STATIONS.includes(station)) return [];
+      return [{ matchNumber, station, voided: voidColumn !== -1 && isVoidCell(row[voidColumn]) }];
+    }),
+  );
 }
 
 // ---- Admin menu ----

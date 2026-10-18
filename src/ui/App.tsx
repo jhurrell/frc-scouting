@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useState } from 'react';
 import type { EventBundle, RosterEntry } from '../shared/contract';
 import type { ScoutingCore } from '../core/scoutingCore';
+import { CoverageScreen } from './CoverageScreen';
 import { DeviceSetupScreen } from './DeviceSetupScreen';
 import { HomeScreen } from './HomeScreen';
 import { HubScreen } from './HubScreen';
@@ -19,7 +20,8 @@ export type Screen =
   | { name: 'new-pit-report' }
   | { name: 'report'; reportId: string }
   | { name: 'qr'; reportId: string }
-  | { name: 'hub' };
+  | { name: 'hub' }
+  | { name: 'coverage' };
 
 interface DeviceState {
   hasAccessCode: boolean;
@@ -72,5 +74,7 @@ function CurrentScreen({ core, state, screen, navigate }: CurrentScreenProps) {
       return <QrScreen core={core} reportId={screen.reportId} navigate={navigate} />;
     case 'hub':
       return <HubScreen core={core} navigate={navigate} />;
+    case 'coverage':
+      return <CoverageScreen core={core} navigate={navigate} />;
   }
 }

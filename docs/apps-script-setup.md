@@ -82,6 +82,9 @@ Use a past event that TBA has a schedule for, such as `2025nyro`.
 29. **Camera:** on a Hub opened at `http://localhost:5173` (browsers only allow the camera on HTTPS or localhost), choose **Scan with the camera** and hold the phone's QR code up to it. Expect the same confirmation. The camera doesn't work on a phone pointed at the computer's network address; that waits for the HTTPS deployment.
 30. **Hub Upload:** when the Hub is online, expect its Received here list to show the Report as Uploaded. In the Event Sheet, its row has Scout ID `t1`, Scout `Test Scout One`, and Uploaded via `hub`.
 31. **Handed off:** on the phone, choose **The Hub has it: mark as handed off**. Expect the Report marked Handed off and nothing waiting. Turn airplane mode off. Expect the phone not to Upload it again.
+32. **Coverage:** first, as each test Scout, complete a Report on the same match and Station. Then on the Hub, online, choose **Coverage**. Expect "From everyone's Uploads" and a grid of every qualification match by the six Stations, with each Station's team number. The Stations of the Reports Uploaded in earlier steps are green, the shared Station is amber with ×2, and the Report Voided in step 17 isn't counted.
+33. **Void in the Sheet:** in `Match Reports`, tick the Void checkbox of a Report on a green Station. Choose **Refresh** on Coverage. Expect that Station grey, or one fewer on an amber one.
+34. **Coverage offline:** on the phone, turn on airplane mode and choose **Coverage**. Expect "This device only… This device is offline", with only the phone's own Complete, non-Void Match Reports counted.
 
 ## Updating the script later
 

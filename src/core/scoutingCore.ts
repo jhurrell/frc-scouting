@@ -1,9 +1,12 @@
 import { sha256 } from '@noble/hashes/sha2.js';
 import { bytesToHex, utf8ToBytes } from '@noble/hashes/utils.js';
 import {
+  countCoverage,
   PIN_PATTERN,
+  STATIONS,
   pinHashText,
   type Answer,
+  type CoverageEntry,
   type EventBundle,
   type MatchReport,
   type PitReport,
@@ -95,6 +98,53 @@ export interface HubReport {
   scoutName: string;
   receivedAt: string;
   uploaded: boolean;
+}
+
+/** One Station in one match on the Coverage grid. */
+export interface CoverageCell {
+  /** The team the schedule puts at this Station, if it names one. */
+  teamNumber?: number;
+  /** Non-Void Match Reports for this match and Station. */
+  count: number;
+}
+
+export interface CoverageRow {
+  matchNumber: number;
+  /** False for a match the schedule doesn't have, such as a playoff, that has Match Reports anyway. */
+  scheduled: boolean;
+  stations: Record<Station, CoverageCell>;
+}
+
+export interface Coverage {
+  eventKey: string;
+  /**
+   * 'everyone': from every Scout's Uploads, in the Event Bundle just downloaded. 'this-device': only the Complete
+   * Match Reports on this device, including any received as a Hub, because the Season Sheet couldn't be reached.
+   */
+  source: 'everyone' | 'this-device';
+  /** Why Coverage is from this device only. */
+  reason?: string;
+  /** Every scheduled match, plus any other match with Match Reports, in match order. */
+  rows: CoverageRow[];
+}
+
+/** The Coverage grid: the schedule's matches by Station, with the counts filled in. */
+function coverageGrid(bundle: EventBundle, counts: CoverageEntry[]): CoverageRow[] {
+  const scheduled = new Map(bundle.schedule.map((m) => [m.matchNumber, m]));
+  const matchNumbers = new Set([...scheduled.keys(), ...counts.map((c) => c.matchNumber)]);
+  return [...matchNumbers]
+    .sort((a, b) => a - b)
+    .map((matchNumber) => {
+      const match = scheduled.get(matchNumber);
+      const stations = Object.fromEntries(
+        STATIONS.map((station) => {
+          const teamNumber = match?.stations[station];
+          const count = counts.find((c) => c.matchNumber === matchNumber && c.station === station)?.count ?? 0;
+          return [station, teamNumber === undefined ? { count } : { teamNumber, count }];
+        }),
+      ) as Record<Station, CoverageCell>;
+      return { matchNumber, scheduled: match !== undefined, stations };
+    });
 }
 
 export interface UploadSummary {
@@ -384,13 +434,18 @@ export function createScoutingCore({
     return row?.value as EventBundle | undefined;
   }
 
+  async function refreshEventBundle(): Promise<EventBundle> {
+    const bundle = await gateway.fetchEventBundle(await getAccessCode());
+    await db.settings.put({ key: 'eventBundle', value: bundle });
+    return bundle;
+  }
+
   async function getAccessCode(): Promise<string> {
     const row = await db.settings.get('accessCode');
     if (!row) throw new ScoutingError('This device has no access code yet. An Admin needs to set it up.');
     return row.value as string;
   }
 
-  /** Complete Reports the Season Sheet doesn't hold in their current version. Drafts never leave the device. */
   /**
    * Complete Reports the Season Sheet doesn't hold in their current version, leaving out those handed off to a
    * Hub, which Uploads them instead. Drafts never leave the device. (All reads start before the first await, so
@@ -427,11 +482,7 @@ export function createScoutingCore({
       return (await db.settings.get('accessCode')) !== undefined;
     },
 
-    async refreshEventBundle(): Promise<EventBundle> {
-      const bundle = await gateway.fetchEventBundle(await getAccessCode());
-      await db.settings.put({ key: 'eventBundle', value: bundle });
-      return bundle;
-    },
+    refreshEventBundle,
 
     getEventBundle,
 
@@ -652,6 +703,30 @@ export function createScoutingCore({
         if (!report) return [];
         return [{ report, receivedAt: row.receivedAt, scoutName: scoutNameIn(bundle, report.scoutId), uploaded: uploads.get(report.id) === report.updatedAt }];
       });
+    },
+
+    /**
+     * Coverage for the current event. Online, it downloads the Event Bundle again, whose Coverage snapshot counts
+     * everyone's Uploads; this device's pending Reports go up first so the snapshot includes them. When the device
+     * is offline or the Season Sheet can't be reached, it counts only this device's Reports and says why.
+     */
+    async refreshCoverage(): Promise<Coverage> {
+      let reason: string;
+      if (network && !network.isOnline()) {
+        reason = 'This device is offline';
+      } else {
+        try {
+          await uploadInBackground();
+          const bundle = await refreshEventBundle();
+          return { eventKey: bundle.eventKey, source: 'everyone', rows: coverageGrid(bundle, bundle.coverage) };
+        } catch (error) {
+          reason = error instanceof Error ? error.message : String(error);
+        }
+      }
+      const [bundle, complete] = await Promise.all([getEventBundle(), db.reports.where('status').equals('complete').toArray()]);
+      if (!bundle) throw new ScoutingError('No Event Bundle on this device yet');
+      const counts = countCoverage(complete.filter((r): r is MatchReport => r.kind === 'match' && r.eventKey === bundle.eventKey));
+      return { eventKey: bundle.eventKey, source: 'this-device', reason, rows: coverageGrid(bundle, counts) };
     },
 
     getReport(reportId: string): Promise<Report | undefined> {

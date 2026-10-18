@@ -1,6 +1,8 @@
 import {
+  countCoverage,
   SheetGatewayError,
   type EventBundle,
+  type MatchReport,
   type Report,
   type SheetGateway,
   type UploadOutcome,
@@ -51,9 +53,13 @@ export class FakeSheetGateway implements SheetGateway {
     }
   }
 
+  /** The bundle given to the fake, with Coverage counted from the Match Reports it has received, as the script does. */
   async fetchEventBundle(accessCode: string): Promise<EventBundle> {
     this.check(accessCode);
-    return structuredClone(this.bundle);
+    const coverage = countCoverage(
+      [...this.uploaded.values()].filter((r) => r.kind === 'match' && r.eventKey === this.bundle.eventKey) as MatchReport[],
+    );
+    return structuredClone({ ...this.bundle, coverage });
   }
 
   async upload(accessCode: string, reports: Report[], hubReportIds: string[] = []): Promise<UploadOutcome[]> {
