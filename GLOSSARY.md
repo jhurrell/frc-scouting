@@ -72,6 +72,10 @@ _Avoid_: Sync, push, flush
 A device that collects Reports from Scouts by QR code and Uploads them on their behalf.
 _Avoid_: Scanner station
 
+**Handed off**:
+A Report a Scout has given to a Hub by QR code. The Hub Uploads it, so it no longer waits on the Scout's device.
+_Avoid_: Transferred, sent, synced
+
 **Season Config**:
 The set of questions Scouts answer for one season's game. It is versioned, and every Report records the version it was answered with.
 _Avoid_: Form, question set, config_data

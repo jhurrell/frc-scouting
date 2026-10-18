@@ -130,8 +130,11 @@ export type UploadOutcome =
 export interface SheetGateway {
   /** Throws SheetGatewayError when the request can't be made or is refused, for example for a wrong access code. */
   fetchEventBundle(accessCode: string): Promise<EventBundle>;
-  /** Returns one outcome per Report. Throws SheetGatewayError when the whole batch is refused. */
-  upload(accessCode: string, reports: Report[]): Promise<UploadOutcome[]>;
+  /**
+   * Returns one outcome per Report. hubReportIds names the Reports this device received as a Hub, so the Sheet
+   * records them as Uploaded via the Hub. Throws SheetGatewayError when the whole batch is refused.
+   */
+  upload(accessCode: string, reports: Report[], hubReportIds?: string[]): Promise<UploadOutcome[]>;
 }
 
 export class SheetGatewayError extends Error {}
@@ -141,7 +144,7 @@ export class SheetGatewayError extends Error {}
 
 export type ScriptRequest =
   | { action: 'event-bundle'; accessCode: string }
-  | { action: 'upload'; accessCode: string; reports: Report[] };
+  | { action: 'upload'; accessCode: string; reports: Report[]; hubReportIds?: string[] };
 
 export type ScriptResponse =
   | { ok: true; bundle: EventBundle }

@@ -299,3 +299,43 @@ fieldset.teams legend {
   padding: 0;
   font-variant-numeric: tabular-nums;
 }
+
+/* QR handoff and the Hub. */
+.qr {
+  display: block;
+  width: min(100%, 22rem);
+  margin: 1rem auto;
+}
+
+.camera {
+  display: block;
+  width: 100%;
+  max-height: 60vh;
+  margin: 0.75rem 0;
+  border-radius: 0.5rem;
+  background: #000;
+  object-fit: cover;
+}
+
+.scan-result {
+  padding: 0.75rem 1rem;
+  border: 2px solid var(--border);
+  border-radius: 0.5rem;
+}
+
+.scan-result.added,
+.scan-result.updated {
+  border-color: var(--complete);
+}
+
+.scan-result.error {
+  border-color: var(--accent);
+}
+
+.report-list li.row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.8rem 0;
+  border-bottom: 1px solid var(--border);
+}

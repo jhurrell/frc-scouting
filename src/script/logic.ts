@@ -114,7 +114,7 @@ export function handleRequest(rawBody: string, port: SpreadsheetPort, env: Scrip
       }
     case 'upload':
       if (!Array.isArray(request.reports)) return { ok: false, error: 'An upload needs a list of Reports' };
-      return { ok: true, outcomes: uploadReports(request.reports, port, env.now) };
+      return { ok: true, outcomes: uploadReports(request.reports, port, env.now, hubIdsFrom(request.hubReportIds)) };
     default:
       return { ok: false, error: `Unknown action "${String((request as { action?: unknown }).action)}"` };
   }
@@ -398,7 +398,17 @@ function scoutNames(table: Table): Map<string, string> {
   return new Map(rows.map((row) => [String(row[idColumn] ?? '').trim(), String(row[nameColumn] ?? '').trim()]));
 }
 
-export function uploadReports(reports: unknown[], port: SpreadsheetPort, now: Date): UploadOutcome[] {
+/** The Report IDs a Hub sent on behalf of other Scouts. Anything that isn't a list of strings counts as none. */
+function hubIdsFrom(raw: unknown): ReadonlySet<string> {
+  return new Set(Array.isArray(raw) ? raw.filter((id): id is string => typeof id === 'string') : []);
+}
+
+export function uploadReports(
+  reports: unknown[],
+  port: SpreadsheetPort,
+  now: Date,
+  hubReportIds: ReadonlySet<string> = new Set(),
+): UploadOutcome[] {
   const eventSheets = readKeyValueTab(port.readSeasonTab(SEASON_TABS.events));
   const names = scoutNames(port.readSeasonTab(SEASON_TABS.scouts));
   const outcomes = new Map<number, UploadOutcome>();
@@ -420,7 +430,7 @@ export function uploadReports(reports: unknown[], port: SpreadsheetPort, now: Da
   });
 
   for (const { sheetId, tab, items } of batches.values()) {
-    const result = upsertReports(port.readEventTab(sheetId, tab), items.map((i) => i.report), { now, via: 'device', names });
+    const result = upsertReports(port.readEventTab(sheetId, tab), items.map((i) => i.report), { now, via: (report) => (hubReportIds.has(report.id) ? 'hub' : 'device'), names });
     if (result.outcomes.includes('stored')) port.writeEventTab(sheetId, tab, result.table);
     items.forEach(({ index, report }, i) => outcomes.set(index, { reportId: report.id, outcome: result.outcomes[i] }));
   }
@@ -469,7 +479,7 @@ function isVoidCell(cell: Cell | undefined): boolean {
 export function upsertReports(
   table: Table,
   reports: Report[],
-  { now, via, names }: { now: Date; via: string; names: Map<string, string> },
+  { now, via, names }: { now: Date; via: (report: Report) => 'device' | 'hub'; names: Map<string, string> },
 ): { table: Table; outcomes: ('stored' | 'stale')[] } {
   const header: Cell[] = table.length > 0 ? [...table[0]] : [];
   const rows: Cell[][] = table.slice(1).map((row) => [...row]);
@@ -504,7 +514,7 @@ export function upsertReports(
 
     for (const code of Object.keys(report.answers)) columnOf(code);
     const scoutName = (report.scoutId !== null && names.get(report.scoutId)) || '';
-    for (const [name, value] of Object.entries(metadataFor(report, uploadedAt, via, scoutName))) row[columnOf(name)] = value;
+    for (const [name, value] of Object.entries(metadataFor(report, uploadedAt, via(report), scoutName))) row[columnOf(name)] = value;
     row[voidColumn] = report.voided || voidInSheet;
     // Every question-code column reflects this version of the Report, so a cleared answer clears its cell.
     header.forEach((name, i) => {

@@ -21,6 +21,8 @@ export class FakeSheetGateway implements SheetGateway {
   readonly rejections = new Map<string, string>();
   /** The Report IDs of every upload call that reached the fake, in order. */
   readonly batches: string[][] = [];
+  /** How the newest stored copy of each Report arrived, by Report ID. */
+  readonly uploadedVia = new Map<string, 'device' | 'hub'>();
   private gate: Promise<void> | null = null;
 
   constructor(
@@ -54,7 +56,7 @@ export class FakeSheetGateway implements SheetGateway {
     return structuredClone(this.bundle);
   }
 
-  async upload(accessCode: string, reports: Report[]): Promise<UploadOutcome[]> {
+  async upload(accessCode: string, reports: Report[], hubReportIds: string[] = []): Promise<UploadOutcome[]> {
     this.batches.push(reports.map((r) => r.id));
     if (this.gate) await this.gate;
     this.check(accessCode);
@@ -65,6 +67,7 @@ export class FakeSheetGateway implements SheetGateway {
       const held = this.uploaded.get(report.id);
       if (held && held.updatedAt > report.updatedAt) return { reportId: report.id, outcome: 'stale' };
       this.uploaded.set(report.id, structuredClone(report));
+      this.uploadedVia.set(report.id, hubReportIds.includes(report.id) ? 'hub' : 'device');
       return { reportId: report.id, outcome: 'stored' };
     });
   }

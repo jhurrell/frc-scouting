@@ -77,6 +77,11 @@ Use a past event that TBA has a schedule for, such as `2025nyro`.
 24. **Offline, then back:** on the phone, turn on airplane mode without reloading the page. Complete two Reports. Expect the top line to say "2 Reports waiting to Upload · Offline". Turn airplane mode off. Expect both to Upload without pressing anything, and two new rows in the Sheet, with no duplicates.
 25. **Script refuses:** in Apps Script, change the `ACCESS_CODE` Script Property to something else. Complete a Report. Expect the top line to say "Last Upload failed: Wrong access code", and the Report still pending. Put the property back and press **Upload now**. Expect it to Upload, and the failure message gone.
 26. **Every screen:** while a Report is waiting, open New Match Report, a Report and the Log in screen. Expect the pending count at the top of each.
+27. **QR handoff:** you need two devices: a Scout's phone and a Hub, which can be the computer running `npm run dev`, with the KU061 connected. Log the Hub in as `Test Scout Two`. On the phone, logged in as `Test Scout One`, turn on airplane mode and complete a Report. Open it and choose **Show QR code for a Hub**.
+28. **Scanner:** on the Hub, choose **Hub**, click in the Scanner input box and scan the phone's QR code with the KU061. Expect "Added", with Test Scout One, the match, Station and team. Scan it again. Expect "Already had this one".
+29. **Camera:** on a Hub opened at `http://localhost:5173` (browsers only allow the camera on HTTPS or localhost), choose **Scan with the camera** and hold the phone's QR code up to it. Expect the same confirmation. The camera doesn't work on a phone pointed at the computer's network address; that waits for the HTTPS deployment.
+30. **Hub Upload:** when the Hub is online, expect its Received here list to show the Report as Uploaded. In the Event Sheet, its row has Scout ID `t1`, Scout `Test Scout One`, and Uploaded via `hub`.
+31. **Handed off:** on the phone, choose **The Hub has it: mark as handed off**. Expect the Report marked Handed off and nothing waiting. Turn airplane mode off. Expect the phone not to Upload it again.
 
 ## Updating the script later
 

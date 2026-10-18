@@ -4,9 +4,11 @@ import type { EventBundle, RosterEntry } from '../shared/contract';
 import type { ScoutingCore } from '../core/scoutingCore';
 import { DeviceSetupScreen } from './DeviceSetupScreen';
 import { HomeScreen } from './HomeScreen';
+import { HubScreen } from './HubScreen';
 import { LoginScreen } from './LoginScreen';
 import { NewMatchReportScreen } from './NewMatchReportScreen';
 import { NewPitReportScreen } from './NewPitReportScreen';
+import { QrScreen } from './QrScreen';
 import { ReportForm } from './ReportForm';
 import { UploadStatusLine } from './UploadStatusLine';
 
@@ -15,7 +17,9 @@ export type Screen =
   | { name: 'device-setup' }
   | { name: 'new-match-report' }
   | { name: 'new-pit-report' }
-  | { name: 'report'; reportId: string };
+  | { name: 'report'; reportId: string }
+  | { name: 'qr'; reportId: string }
+  | { name: 'hub' };
 
 interface DeviceState {
   hasAccessCode: boolean;
@@ -64,5 +68,9 @@ function CurrentScreen({ core, state, screen, navigate }: CurrentScreenProps) {
       return <NewPitReportScreen core={core} bundle={state.bundle} navigate={navigate} />;
     case 'report':
       return <ReportForm core={core} reportId={screen.reportId} navigate={navigate} />;
+    case 'qr':
+      return <QrScreen core={core} reportId={screen.reportId} navigate={navigate} />;
+    case 'hub':
+      return <HubScreen core={core} navigate={navigate} />;
   }
 }

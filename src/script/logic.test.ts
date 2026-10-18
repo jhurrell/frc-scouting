@@ -436,6 +436,21 @@ describe('uploading Reports', () => {
     expect(port.readEventTab(EVENT_SHEET, REPORT_TABS.pit)[0]).toEqual([...METADATA_COLUMNS, 'drive', 'motors']);
   });
 
+  it('marks Reports a Hub sent on behalf of other Scouts as Uploaded via the Hub', () => {
+    const response = send({
+      action: 'upload',
+      accessCode: ACCESS_CODE,
+      reports: [matchReport({ id: 'own' }), matchReport({ id: 'scanned', scoutId: 't2' })],
+      hubReportIds: ['scanned'],
+    });
+
+    expect(response).toEqual({ ok: true, outcomes: [{ reportId: 'own', outcome: 'stored' }, { reportId: 'scanned', outcome: 'stored' }] });
+    expect(matchRows().map((r) => [r['Report ID'], r['Scout ID'], r['Uploaded via']])).toEqual([
+      ['own', '', 'device'],
+      ['scanned', 't2', 'hub'],
+    ]);
+  });
+
   it('splits one batch between the Match Reports and Pit Reports tabs', () => {
     const outcomes = upload(matchReport({ id: 'r1' }), pitReport({ id: 'p1' }), pitReport({ id: 'p2', teamNumber: 174 }));
 

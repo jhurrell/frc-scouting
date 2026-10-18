@@ -30,10 +30,25 @@ export interface UploadRow {
   updatedAt: string;
 }
 
+/** The version of a Report its Scout handed off to a Hub by QR. The Hub Uploads it, so it isn't pending here. */
+export interface HandoffRow {
+  reportId: string;
+  updatedAt: string;
+}
+
+/** A Report this device received as a Hub, on behalf of another Scout. */
+export interface HubReportRow {
+  reportId: string;
+  /** When it was last scanned in. ISO 8601. */
+  receivedAt: string;
+}
+
 export class ScoutingDb extends Dexie {
   reports!: Table<Report, string>;
   settings!: Table<SettingRow, string>;
   uploads!: Table<UploadRow, string>;
+  handoffs!: Table<HandoffRow, string>;
+  hubReports!: Table<HubReportRow, string>;
 
   constructor(name = 'scouting') {
     super(name);
@@ -43,6 +58,10 @@ export class ScoutingDb extends Dexie {
     });
     this.version(2).stores({
       uploads: 'reportId',
+    });
+    this.version(3).stores({
+      handoffs: 'reportId',
+      hubReports: 'reportId, receivedAt',
     });
   }
 }

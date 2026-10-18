@@ -111,6 +111,12 @@ export function ReportForm({ core, reportId, navigate }: Props) {
           Void
         </button>
       )}
+
+      {!isDraft && !editing && (
+        <button className="secondary" onClick={() => navigate({ name: 'qr', reportId: report.id })}>
+          Show QR code for a Hub
+        </button>
+      )}
     </main>
   );
 }

@@ -16,6 +16,7 @@ import {
   type Station,
 } from '../shared/contract';
 import type { ScoutingDb, UploadRow, UploadStatus } from './db';
+import { decodeReport, encodeReport, envelopeConfigVersion, QrCodecError } from './qrCodec';
 import { formSections, validateSeasonConfigs } from './seasonConfig';
 
 export class ScoutingError extends Error {}
@@ -64,8 +65,36 @@ export interface ListedReport {
   report: Report;
   /** True when the Season Sheet holds this exact version of the Report. */
   uploaded: boolean;
+  /** True when the Scout handed this exact version off to a Hub by QR. */
+  handedOff: boolean;
   /** Why the Season Sheet refused this version of the Report, if it did. */
   rejection?: string;
+}
+
+/** What happened to a scan at the Hub. */
+export type ScanOutcome =
+  /** New to this Hub, and now waiting to Upload. */
+  | 'added'
+  /** A newer copy of a Report the Hub had. It replaced the older one. */
+  | 'updated'
+  /** The Hub already had this version. Nothing changed. */
+  | 'duplicate'
+  /** The Hub already had a newer version. Nothing changed. */
+  | 'older';
+
+export interface ScanResult {
+  outcome: ScanOutcome;
+  report: Report;
+  /** The Scout who made the Report, from the roster, or their Scout ID if the roster doesn't have them. */
+  scoutName: string;
+}
+
+/** A Report received at this Hub, for the Hub screen. */
+export interface HubReport {
+  report: Report;
+  scoutName: string;
+  receivedAt: string;
+  uploaded: boolean;
 }
 
 export interface UploadSummary {
@@ -274,9 +303,12 @@ export function createScoutingCore({
     const pending = await pendingUploads();
     if (pending.length === 0) return { stored: 0, stale: 0, rejected: [] };
 
+    const received = new Set((await db.hubReports.bulkGet(pending.map((r) => r.id))).map((row) => row?.reportId));
+    const hubReportIds = pending.filter((r) => received.has(r.id)).map((r) => r.id);
+
     let outcomes;
     try {
-      outcomes = await gateway.upload(accessCode, pending);
+      outcomes = await gateway.upload(accessCode, pending, hubReportIds);
     } catch (error) {
       const previous = await getUploadStatus();
       const status: UploadStatus = {
@@ -359,10 +391,25 @@ export function createScoutingCore({
   }
 
   /** Complete Reports the Season Sheet doesn't hold in their current version. Drafts never leave the device. */
+  /**
+   * Complete Reports the Season Sheet doesn't hold in their current version, leaving out those handed off to a
+   * Hub, which Uploads them instead. Drafts never leave the device. (All reads start before the first await, so
+   * a live query sees them; see listReports.)
+   */
   async function pendingUploads(): Promise<Report[]> {
-    const complete = await db.reports.where('status').equals('complete').toArray();
-    const uploads = new Map((await db.uploads.toArray()).map((u) => [u.reportId, u.updatedAt]));
-    return complete.filter((r) => uploads.get(r.id) !== r.updatedAt);
+    const [complete, uploadRows, handoffRows] = await Promise.all([
+      db.reports.where('status').equals('complete').toArray(),
+      db.uploads.toArray(),
+      db.handoffs.toArray(),
+    ]);
+    const uploads = new Map(uploadRows.map((u) => [u.reportId, u.updatedAt]));
+    const handoffs = new Map(handoffRows.map((h) => [h.reportId, h.updatedAt]));
+    return complete.filter((r) => uploads.get(r.id) !== r.updatedAt && handoffs.get(r.id) !== r.updatedAt);
+  }
+
+  function scoutNameIn(bundle: EventBundle | undefined, scoutId: string | null): string {
+    if (scoutId === null) return 'Unknown Scout';
+    return bundle?.roster.find((s) => s.scoutId === scoutId)?.name ?? scoutId;
   }
 
   return {
@@ -521,6 +568,92 @@ export function createScoutingCore({
       void uploadInBackground();
     },
 
+    /**
+     * The QR envelope for one of the logged-in Scout's Complete Reports, to show to a Hub. Throws ScoutingError
+     * when the Report can't travel as one QR code, for example because its text answers are too long.
+     */
+    async qrTextFor(reportId: string): Promise<string> {
+      const report = await loadOwn(reportId);
+      try {
+        return encodeReport(report, seasonConfigFor(report.configVersion));
+      } catch (error) {
+        if (error instanceof QrCodecError) throw new ScoutingError(error.message);
+        throw error;
+      }
+    },
+
+    /**
+     * The Scout says a Hub has scanned this version of their Report. It stops counting as pending here, because the
+     * Hub Uploads it. Changing the Report afterwards makes it pending again, since the Hub has the older version.
+     */
+    async markHandedOff(reportId: string): Promise<void> {
+      const report = await loadOwn(reportId);
+      if (report.status !== 'complete') throw new ScoutingError('Only a Complete Report can be handed off');
+      await db.handoffs.put({ reportId, updatedAt: report.updatedAt });
+    },
+
+    /**
+     * The Hub takes in one scanned QR code, from the camera or a keyboard-style scanner. The Report keeps its
+     * original Scout and goes in this device's Upload queue. Rescanning a version the Hub has does nothing, and a
+     * newer copy replaces an older one. Throws ScoutingError, with a reason to show, for a scan it can't use.
+     */
+    async acceptScan(text: string): Promise<ScanResult> {
+      await requireScout();
+      let report: Report;
+      try {
+        const version = envelopeConfigVersion(text);
+        const config = seasonConfigs.find((c) => c.version === version);
+        if (!config) {
+          throw new ScoutingError(`This QR code uses Season Config version ${version}, which this app doesn't have. Update the app.`);
+        }
+        report = decodeReport(text, config);
+      } catch (error) {
+        if (error instanceof QrCodecError) throw new ScoutingError(error.message);
+        throw error;
+      }
+      for (const question of questionsFor(report)) {
+        const value = report.answers[question.code];
+        if (value === undefined) continue;
+        try {
+          checkAnswer(question, value);
+        } catch (error) {
+          throw new ScoutingError(`The scanned Report has a bad answer: ${(error as Error).message}`);
+        }
+      }
+      const missing = unansweredRequiredIn(report);
+      if (missing.length > 0) throw new ScoutingError(`The scanned Report is missing required answers: ${missing.join(', ')}`);
+
+      const scanned = report;
+      const outcome = await db.transaction('rw', db.reports, db.hubReports, async (): Promise<ScanOutcome> => {
+        const held = await db.reports.get(scanned.id);
+        if (held && held.updatedAt === scanned.updatedAt) return 'duplicate';
+        if (held && held.updatedAt > scanned.updatedAt) return 'older';
+        await db.reports.put(scanned);
+        await db.hubReports.put({ reportId: scanned.id, receivedAt: now().toISOString() });
+        return held ? 'updated' : 'added';
+      });
+      if (outcome === 'added' || outcome === 'updated') void uploadInBackground();
+      return { outcome, report: scanned, scoutName: scoutNameIn(await getEventBundle(), scanned.scoutId) };
+    },
+
+    /** Reports this device received as a Hub, most recently scanned first. (All reads start at once; see listReports.) */
+    async listHubReports(): Promise<HubReport[]> {
+      const [rows, bundleRow, uploadRows, allReports] = await Promise.all([
+        db.hubReports.orderBy('receivedAt').reverse().toArray(),
+        db.settings.get('eventBundle'),
+        db.uploads.toArray(),
+        db.reports.toArray(),
+      ]);
+      const bundle = bundleRow?.value as EventBundle | undefined;
+      const uploads = new Map(uploadRows.map((u) => [u.reportId, u.updatedAt]));
+      const reports = new Map(allReports.map((r) => [r.id, r]));
+      return rows.flatMap((row) => {
+        const report = reports.get(row.reportId);
+        if (!report) return [];
+        return [{ report, receivedAt: row.receivedAt, scoutName: scoutNameIn(bundle, report.scoutId), uploaded: uploads.get(report.id) === report.updatedAt }];
+      });
+    },
+
     getReport(reportId: string): Promise<Report | undefined> {
       return db.reports.get(reportId);
     },
@@ -552,24 +685,27 @@ export function createScoutingCore({
      * committed it early while the nested helpers were still awaiting.)
      */
     async listReports(): Promise<ListedReport[]> {
-      const [scoutRow, bundleRow, newestFirst, uploadRows, statusRow] = await Promise.all([
+      const [scoutRow, bundleRow, newestFirst, uploadRows, statusRow, handoffRows] = await Promise.all([
         db.settings.get('scoutId'),
         db.settings.get('eventBundle'),
         db.reports.orderBy('updatedAt').reverse().toArray(),
         db.uploads.toArray(),
         db.settings.get('uploadStatus'),
+        db.handoffs.toArray(),
       ]);
       const roster = (bundleRow?.value as EventBundle | undefined)?.roster ?? [];
       const scout = roster.find((s) => s.scoutId === scoutRow?.value);
       if (!scout) return [];
       const uploads = new Map(uploadRows.map((u) => [u.reportId, u.updatedAt]));
+      const handoffs = new Map(handoffRows.map((h) => [h.reportId, h.updatedAt]));
       const rejections = (statusRow?.value as UploadStatus | undefined)?.rejections ?? [];
       return newestFirst
         .filter((report) => report.scoutId === scout.scoutId)
         .map((report) => {
           const uploaded = uploads.get(report.id) === report.updatedAt;
           const rejection = rejections.find((r) => r.reportId === report.id && r.updatedAt === report.updatedAt);
-          return { report, uploaded, ...(rejection && !uploaded && { rejection: rejection.reason }) };
+          const handedOff = handoffs.get(report.id) === report.updatedAt;
+          return { report, uploaded, handedOff, ...(rejection && !uploaded && { rejection: rejection.reason }) };
         });
     },
   };

@@ -10,10 +10,11 @@ function describeReport(report: Report): string {
     : `Pit · Team ${report.teamNumber}`;
 }
 
-function statusOf({ report, uploaded, rejection }: ListedReport): { text: string; className: string } {
+function statusOf({ report, uploaded, handedOff, rejection }: ListedReport): { text: string; className: string } {
   if (report.status === 'draft') return { text: report.voided ? 'Void Draft' : 'Draft', className: report.voided ? 'void' : 'draft' };
   if (rejection) return { text: 'Not accepted', className: 'rejected' };
-  const upload = uploaded ? 'Uploaded' : 'Not uploaded';
+  const upload = uploaded ? 'Uploaded' : handedOff ? 'Handed off' : 'Not uploaded';
+  if (handedOff && !uploaded && !report.voided) return { text: upload, className: 'complete' };
   if (report.voided) return { text: `Void · ${upload}`, className: 'void' };
   return uploaded ? { text: upload, className: 'complete' } : { text: upload, className: 'pending' };
 }
@@ -92,6 +93,11 @@ export function HomeScreen({ core, navigate }: { core: ScoutingCore; navigate: (
       <button className="secondary" disabled={busy || pending.length === 0} onClick={uploadNow}>
         {busy ? 'Uploading…' : 'Upload now'}
       </button>
+      {scout && (
+        <button className="secondary" onClick={() => navigate({ name: 'hub' })}>
+          Hub: collect Reports by QR
+        </button>
+      )}
       {message && <p className={message.error ? 'error' : 'muted'}>{message.text}</p>}
 
       <h2>My Reports</h2>

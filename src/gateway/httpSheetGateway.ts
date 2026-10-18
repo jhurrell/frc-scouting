@@ -46,8 +46,8 @@ export class HttpSheetGateway implements SheetGateway {
     return body.bundle;
   }
 
-  async upload(accessCode: string, reports: Report[]): Promise<UploadOutcome[]> {
-    const body = await this.send({ action: 'upload', accessCode, reports });
+  async upload(accessCode: string, reports: Report[], hubReportIds: string[] = []): Promise<UploadOutcome[]> {
+    const body = await this.send({ action: 'upload', accessCode, reports, ...(hubReportIds.length > 0 && { hubReportIds }) });
     if (!('outcomes' in body)) throw new SheetGatewayError('The Season Sheet sent no upload results');
     return body.outcomes;
   }
