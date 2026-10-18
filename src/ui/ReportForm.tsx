@@ -14,11 +14,25 @@ interface Props {
 /** The form for a Match Report or a Pit Report. Both use the same Draft-to-Complete flow. */
 export function ReportForm({ core, reportId, navigate }: Props) {
   const report = useLiveQuery(() => core.getReport(reportId), [reportId]);
-  const unanswered = useLiveQuery(() => core.unansweredRequired(reportId), [reportId], []);
+  // A Report on a Season Config version this app doesn't have has no questions to check; the form explains below.
+  const unanswered = useLiveQuery(() => core.unansweredRequired(reportId).catch(() => []), [reportId], []);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
 
   if (!report) return <main className="muted">Loading…</main>;
+  if (!core.hasSeasonConfig(report.configVersion)) {
+    return (
+      <main>
+        <button className="link" onClick={() => navigate({ name: 'home' })}>
+          ‹ Home
+        </button>
+        <p className="error">
+          This Report uses Season Config version {report.configVersion}, which this version of the app doesn’t have.
+          Reload the app to update it. The Report is safe on this device.
+        </p>
+      </main>
+    );
+  }
 
   const sections = formSections(core.seasonConfigFor(report.configVersion), report.kind);
   const isDraft = report.status === 'draft';

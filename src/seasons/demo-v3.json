@@ -1,0 +1,222 @@
+{
+  "season": "demo",
+  "version": 3,
+  "match": {
+    "stages": {
+      "Autonomous": [
+        {
+          "code": "auto_moved",
+          "label": "Robot moved in auto",
+          "type": "yes-no",
+          "required": true
+        },
+        {
+          "code": "auto_stop",
+          "label": "A-Stop activated",
+          "type": "single-choice",
+          "options": ["Yes", "No", "Unsure"],
+          "required": true
+        },
+        {
+          "code": "auto_fuel",
+          "label": "Total Fuel scored (1 = 0–1 Fuel, 5 = 15 or more)",
+          "type": "single-choice",
+          "options": ["1", "2", "3", "4", "5"],
+          "required": true
+        }
+      ],
+      "Teleop": [
+        {
+          "code": "tele_shoot_speed",
+          "label": "How fast can the robot shoot Fuel? (1 = slow, 3 = fast)",
+          "type": "single-choice",
+          "options": ["1", "2", "3"],
+          "required": true
+        },
+        {
+          "code": "tele_shoot_accuracy",
+          "label": "How accurate are the robot's shots? (1 = less than 30%, 3 = more than 80%)",
+          "type": "single-choice",
+          "options": ["1", "2", "3"],
+          "required": true
+        },
+        {
+          "code": "tele_fuel_scored",
+          "label": "How many Fuel did the robot score? (1 = not many, 5 = a lot)",
+          "type": "single-choice",
+          "options": ["1", "2", "3", "4", "5"],
+          "required": true
+        },
+        {
+          "code": "tele_collect_neutral",
+          "label": "Did the robot collect Fuel from the Neutral Zone?",
+          "type": "yes-no"
+        },
+        {
+          "code": "tele_collect_opposing",
+          "label": "Did the robot collect Fuel from the opposing Alliance Zone?",
+          "type": "yes-no"
+        },
+        {
+          "code": "tele_relay",
+          "label": "Did the robot relay Fuel?",
+          "type": "yes-no"
+        },
+        {
+          "code": "tele_bulldoze",
+          "label": "Did the robot bulldoze Fuel?",
+          "type": "yes-no"
+        },
+        {
+          "code": "tele_intake_good",
+          "label": "Was the robot's intake good?",
+          "type": "yes-no",
+          "required": true
+        }
+      ],
+      "Endgame": [
+        {
+          "code": "end_defense",
+          "label": "Was the robot playing defense the entire game?",
+          "type": "yes-no"
+        },
+        {
+          "code": "end_same_position",
+          "label": "Did the robot shoot from approximately the same position during the match?",
+          "type": "yes-no"
+        },
+        {
+          "code": "end_performance",
+          "label": "Grade the robot's performance",
+          "type": "single-choice",
+          "options": ["Bad", "Decent", "Mediocre", "Good", "Amazing"],
+          "required": true
+        }
+      ],
+      "Post-Match": [
+        {
+          "code": "result",
+          "label": "What was the result of the match?",
+          "type": "single-choice",
+          "options": ["Win", "Loss", "Tie"],
+          "required": true
+        },
+        {
+          "code": "rp_energized",
+          "label": "Energized Ranking Point",
+          "type": "yes-no"
+        },
+        {
+          "code": "rp_supercharged",
+          "label": "Supercharged Ranking Point",
+          "type": "yes-no"
+        },
+        {
+          "code": "rp_traversal",
+          "label": "Traversal Ranking Point",
+          "type": "yes-no"
+        },
+        {
+          "code": "total_points",
+          "label": "Team points scored total",
+          "type": "number",
+          "min": 0,
+          "max": 9999
+        },
+        {
+          "code": "notes",
+          "label": "Comments (mandatory key points)",
+          "type": "text",
+          "required": true
+        }
+      ]
+    }
+  },
+  "pit": {
+    "groups": [
+      {
+        "name": "Status",
+        "questions": [
+          {
+            "code": "robot_works",
+            "label": "Does the robot function?",
+            "type": "yes-no"
+          },
+          {
+            "code": "fix_eta",
+            "label": "If not, when will it?",
+            "type": "single-choice",
+            "options": ["Next match", "1–2 hours", "Never"]
+          }
+        ]
+      },
+      {
+        "name": "Drivetrain",
+        "questions": [
+          {
+            "code": "drive_type",
+            "label": "What kind of wheels do they use?",
+            "type": "single-choice",
+            "options": ["Tank", "Swerve", "Mecanum", "Other"],
+            "required": true
+          },
+          {
+            "code": "trench_bump",
+            "label": "Is the robot able to go under the trench or over the bump?",
+            "type": "single-choice",
+            "options": ["Bump", "Trench", "Both", "Neither (broken down)"],
+            "required": true
+          }
+        ]
+      },
+      {
+        "name": "Scoring",
+        "questions": [
+          {
+            "code": "shoot_mobility",
+            "label": "Does the robot shoot while moving or does it need to be stationary?",
+            "type": "single-choice",
+            "options": ["Mobile", "Stationary", "Neither (defense)"],
+            "required": true
+          },
+          {
+            "code": "payload",
+            "label": "Does the robot have a large, medium or small payload capacity?",
+            "type": "single-choice",
+            "options": [
+              "Small (less than 15)",
+              "Medium (15–30)",
+              "Large (more than 30)"
+            ],
+            "required": true
+          },
+          {
+            "code": "can_climb",
+            "label": "Can the robot climb / does it have a climber?",
+            "type": "yes-no"
+          }
+        ]
+      },
+      {
+        "name": "About the robot",
+        "questions": [
+          {
+            "code": "favorite_color",
+            "label": "If the robot had a favorite color, what would it be?",
+            "type": "text"
+          },
+          {
+            "code": "robot_name",
+            "label": "What's the robot's name or nickname?",
+            "type": "text"
+          },
+          {
+            "code": "pit_notes",
+            "label": "Comments",
+            "type": "text"
+          }
+        ]
+      }
+    ]
+  }
+}

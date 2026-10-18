@@ -471,6 +471,11 @@ export function createScoutingCore({
     latestConfig,
     seasonConfigFor,
 
+    /** Whether this app ships the Season Config version, for a Report made by a newer app. */
+    hasSeasonConfig(version: number): boolean {
+      return seasonConfigs.some((c) => c.version === version);
+    },
+
     /** Device setup: stores the team access code on this device only. */
     async setAccessCode(accessCode: string): Promise<void> {
       const code = accessCode.trim();

@@ -411,6 +411,24 @@ describe('uploading Reports', () => {
     ]);
   });
 
+  it('keeps the columns in place when an older version’s Report arrives after a newer one', () => {
+    upload(matchReport({ id: 'r1', configVersion: 1, answers: { tele_scored: 1, notes: 'fast' } }));
+    upload(matchReport({ id: 'r2', configVersion: 2, answers: { tele_scored: 2, tele_missed: 1, driver_rating: 'Great' } }));
+    const [before] = port.readEventTab(EVENT_SHEET, REPORT_TABS.match);
+
+    // A version 1 Report that reached the Hub late.
+    upload(matchReport({ id: 'r3', configVersion: 1, answers: { tele_scored: 4, notes: 'slow' } }));
+
+    const [header] = port.readEventTab(EVENT_SHEET, REPORT_TABS.match);
+    expect(header).toEqual(before);
+    expect(header.slice(METADATA_COLUMNS.length)).toEqual(['tele_scored', 'notes', 'tele_missed', 'driver_rating']);
+    expect(matchRows()).toMatchObject([
+      { 'Report ID': 'r1', 'Config version': 1, tele_scored: 1, notes: 'fast', tele_missed: '', driver_rating: '' },
+      { 'Report ID': 'r2', 'Config version': 2, tele_scored: 2, notes: '', tele_missed: 1, driver_rating: 'Great' },
+      { 'Report ID': 'r3', 'Config version': 1, tele_scored: 4, notes: 'slow', tele_missed: '', driver_rating: '' },
+    ]);
+  });
+
   it('clears the cell of an answer the Report no longer has', () => {
     upload(matchReport({ answers: { tele_scored: 1, notes: 'fast' } }));
     upload(matchReport({ answers: { tele_scored: 1 } }));
