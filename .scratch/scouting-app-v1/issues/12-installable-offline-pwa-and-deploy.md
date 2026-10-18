@@ -31,3 +31,10 @@ See the spec: Architecture, user stories 12, 67–69.
   - After a second build is "deployed", the update is offered on Home and Coverage, but not with a Draft open or on New Match Report.
   - **Update now** loads the new build, deletes the old cache and keeps the Draft. It also works offline afterwards.
 - **Not yet verified:** a real install on iOS and Android, and the GitHub deploy itself. Both need Pages turned on and the `VITE_SCRIPT_URL` variable set (`docs/deploy.md`, "One-time setup on GitHub"), then the hand check in the same file.
+
+**2026-10-18, deployed:**
+- The first Deploy run (commit `5d7e7ed`) passed. The app is live at https://jhurrell.github.io/frc-scouting/.
+- Pages builds from GitHub Actions, and the `VITE_SCRIPT_URL` repository variable is set.
+- Checked the live site in headless Chrome, without entering an access code: there are no installability errors, the service worker takes control on the first visit, and the app reloads to Device setup with the network cut.
+- The Pages actions are moved to v5, which run on Node 24.
+- **Still to do:** the hand check in `docs/deploy.md` on a real iPhone and Android phone.
