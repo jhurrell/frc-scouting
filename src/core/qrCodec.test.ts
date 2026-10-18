@@ -2,7 +2,6 @@ import jsQR from 'jsqr';
 import QRCode from 'qrcode';
 import { describe, expect, it } from 'vitest';
 import type { MatchReport, PitReport, SeasonConfig } from '../shared/contract';
-import demoV2 from '../seasons/demo-v2.json';
 import { decodeReport, encodeReport, envelopeConfigVersion, MAX_QR_TEXT, QrCodecError } from './qrCodec';
 
 const config: SeasonConfig = {
@@ -109,24 +108,6 @@ describe('a damaged scan', () => {
 });
 
 describe('the size limit', () => {
-  it('fits a full demo Match Report with a few sentences of notes', () => {
-    const demo = demoV2 as SeasonConfig;
-    const full: MatchReport = {
-      ...matchReport,
-      configVersion: 2,
-      answers: {
-        start_pos: 'Middle',
-        auto_moved: true,
-        auto_scored: 4,
-        tele_scored: 17,
-        tele_cycle: 11.5,
-        end_actions: ['Parked', 'Played defence'],
-        notes: 'Strong driver, slow intake. Tipped once in teleop but recovered. Good partner for defence.',
-      },
-    };
-    expect(encodeReport(full, demo).length).toBeLessThan(MAX_QR_TEXT / 2);
-  });
-
   it('refuses a Report too long for one QR code, with a clear reason', () => {
     const long = { ...matchReport, answers: { notes: 'x'.repeat(MAX_QR_TEXT) } };
     expect(() => encodeReport(long, config)).toThrow(/too long for one QR code/);

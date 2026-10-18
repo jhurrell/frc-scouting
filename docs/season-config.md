@@ -6,7 +6,7 @@ The Season Config is the set of questions Scouts answer for one season's game. I
 
 ```json
 {
-  "season": "demo",
+  "season": "2026-rebuilt",
   "version": 2,
   "match": {
     "stages": {
@@ -39,14 +39,20 @@ The app checks these when it starts, and `npm test` checks them too, listing eve
 - **A code keeps its type in every version of the season.** If `tele_scored` is a counter in version 1, it is a counter in every later version. For a different kind of answer, use a new code.
 - **Choice questions** need a list of options with no repeats. A multiple-choice option can't contain a comma, because the Sheet separates selections with commas.
 
+## Fitting in a QR code
+
+A Scout with no connection hands a Report to a Hub as one QR code, which holds 600 characters. Every question takes room in it, even unanswered: a yes-no or a choice takes 2 to 3 characters, and a number up to 5. Text answers take the most, about 1.4 characters for each character typed, because spaces and punctuation are escaped.
+
+`npm test` checks every version: a Match Report and a Pit Report with every question answered at its longest must still leave room for 300 characters of notes, shared between the text questions. If it fails with "Too many questions to hand a Report to a Hub", the new version has too many questions. Remove some, starting with ones Strategists don't use.
+
 ## Changing the questions mid-season
 
 Never edit a version that has shipped. Reports already made with it were answered against exactly those questions. Add a new version instead:
 
-1. Copy the newest file, for example `demo-v2.json` to `demo-v3.json`.
-2. In the copy, set `"version": 3` and make your changes.
+1. Copy the newest file, for example `2026-rebuilt-v1.json` to `2026-rebuilt-v2.json`.
+2. In the copy, set `"version": 2` and make your changes.
 3. In `src/seasons/index.ts`, import the new file and add it to the end of the list.
-4. Run `npm test`. The test in `src/seasons/seasons.test.ts` fails with "Version 3 is new" and the line to add. Add that line to `FINGERPRINTS` and run `npm test` again.
+4. Run `npm test`. The test in `src/seasons/seasons.test.ts` fails with "Version 2 is new" and the line to add. Add that line to `FINGERPRINTS` and run `npm test` again.
 5. Deploy the app.
 
 If `npm test` says a version "has changed since it shipped", an old file was edited. Put it back with `git checkout -- src/seasons/<file>` and make the change in a new version.
@@ -61,4 +67,4 @@ If `npm test` says a version "has changed since it shipped", an old file was edi
 
 ## A new season
 
-A new game gets a new set of files with a new `season` name, starting again at version 1. Remove the old season's files from `src/seasons/index.ts`, and empty `FINGERPRINTS` before recording the new ones. Every Report from the old season should be Uploaded first.
+A new game gets a new set of files with a new `season` name, such as `2027-<game>`, starting again at version 1. Remove the old season's files from `src/seasons/index.ts`, and empty `FINGERPRINTS` before recording the new ones. Every Report from the old season should be Uploaded first.

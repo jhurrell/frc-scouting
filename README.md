@@ -25,11 +25,9 @@ The words used here (Scout, Station, Match Report, Hub, Upload, Void and so on) 
 
 ## Status
 
-Version 1 is nearly done. The app is at **https://jhurrell.github.io/frc-scouting/** once GitHub Pages is set up (see [docs/deploy.md](docs/deploy.md)). Still to do:
+Version 1 is done and live at **https://jhurrell.github.io/frc-scouting/** (see [docs/deploy.md](docs/deploy.md)). The questions are the 2026 Rebuilt Season Config (`src/seasons/2026-rebuilt-v1.json`), ready for the off-season dry run.
 
-- **Final season questions:** the 2026 Rebuilt questions ship as version 3 of the `demo` season. Ticket 13 settles the season's name and adds a test that a Report always fits in a QR code.
-
-The tickets are in `.scratch/scouting-app-v1/issues/`.
+The spec and tickets are in `.scratch/scouting-app-v1/`.
 
 ## For Scouts
 
