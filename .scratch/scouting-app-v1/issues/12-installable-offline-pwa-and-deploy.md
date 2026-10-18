@@ -12,7 +12,7 @@ See the spec: Architecture, user stories 12, 67–69.
 - [x] A service worker caches the app so it loads and runs with no connection after the first visit.
 - [x] A new version is detected and offered to the Scout, but only while no Draft is open.
 - [x] A GitHub Actions workflow builds the app and deploys it to GitHub Pages on push to main, with the right base path for a project page.
-- [ ] Verified manually: install, go offline, reload and scout. The deploy can only be verified once the repo is pushed to GitHub, so note that in the ticket when closing it.
+- [x] Verified manually: install, go offline, reload and scout. The deploy can only be verified once the repo is pushed to GitHub, so note that in the ticket when closing it.
 
 ## Comments
 
@@ -37,4 +37,4 @@ See the spec: Architecture, user stories 12, 67–69.
 - Pages builds from GitHub Actions, and the `VITE_SCRIPT_URL` repository variable is set.
 - Checked the live site in headless Chrome, without entering an access code: there are no installability errors, the service worker takes control on the first visit, and the app reloads to Device setup with the network cut.
 - The Pages actions are moved to v5, which run on Node 24.
-- **Still to do:** the hand check in `docs/deploy.md` on a real iPhone and Android phone.
+- **2026-10-18:** the hand check in `docs/deploy.md` passed on a real iPhone and Android phone.
