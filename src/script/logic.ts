@@ -67,7 +67,7 @@ export const REPORT_TABS = { match: 'Match Reports', pit: 'Pit Reports' } as con
 export const CURRENT_EVENT_SETTING = 'Current event';
 
 const SETTINGS_HEADER = ['Setting', 'Value'];
-const EVENTS_HEADER = ['Event key', 'Event Sheet ID'];
+const EVENTS_HEADER = ['Event key', 'Event Sheet ID', 'Event name'];
 const SCHEDULE_HEADER = ['Match', ...STATIONS];
 const TEAMS_HEADER = ['Team'];
 const SCOUTS_HEADER = ['Scout ID', 'Name', 'PIN'];
@@ -144,6 +144,43 @@ function withKeyValue(table: Table, header: string[], key: string, value: string
   return rectangular(result);
 }
 
+/** The Events tab's rows by Event key. An empty name is ''. */
+function readEvents(table: Table): Map<string, { eventSheetId: string; eventName: string }> {
+  return new Map(
+    table
+      .slice(1)
+      .filter((row) => String(row[0] ?? '').trim() !== '')
+      .map((row) => [
+        String(row[0]).trim(),
+        { eventSheetId: String(row[1] ?? '').trim(), eventName: String(row[2] ?? '').trim() },
+      ]),
+  );
+}
+
+/** The Event's name in the Events tab, or '' when it has none, so the menu asks for one only when it's missing. */
+export function savedEventName(eventKey: string, port: SpreadsheetPort): string {
+  return readEvents(port.readSeasonTab(SEASON_TABS.events)).get(eventKey)?.eventName ?? '';
+}
+
+/**
+ * Records an Event in the Events tab with its Event Sheet ID. The name goes in only when the row has none, so a name
+ * an Admin edited is kept. Header cells an older Events tab lacks are added.
+ */
+function withEvent(table: Table, eventKey: string, eventSheetId: string, eventName: string): Table {
+  const result = table.length > 0 ? table.map((row) => [...row]) : [[]];
+  EVENTS_HEADER.forEach((name, i) => {
+    if (String(result[0][i] ?? '').trim() === '') result[0][i] = name;
+  });
+  let row = result.slice(1).find((r) => String(r[0] ?? '').trim() === eventKey);
+  if (!row) {
+    row = [eventKey];
+    result.push(row);
+  }
+  row[1] = eventSheetId;
+  if (String(row[2] ?? '').trim() === '') row[2] = eventName;
+  return rectangular(result);
+}
+
 /** Pads every row to the widest one, as Sheets needs. */
 function rectangular(table: Table): Table {
   const width = Math.max(0, ...table.map((row) => row.length));
@@ -156,16 +193,17 @@ function wholeNumber(cell: Cell | undefined): number | null {
   return typeof n === 'number' && Number.isInteger(n) && n >= 1 ? n : null;
 }
 
-function currentEvent(port: SpreadsheetPort): { eventKey: string; eventSheetId: string } {
+/** The current event, with its name, or '' when the Events tab has none. */
+function currentEvent(port: SpreadsheetPort): { eventKey: string; eventSheetId: string; eventName: string } {
   const eventKey = readKeyValueTab(port.readSeasonTab(SEASON_TABS.settings)).get(CURRENT_EVENT_SETTING);
   if (!eventKey) {
     throw new ScriptError(`No current event. Set "${CURRENT_EVENT_SETTING}" in the Season Sheet's ${SEASON_TABS.settings} tab.`);
   }
-  const eventSheetId = readKeyValueTab(port.readSeasonTab(SEASON_TABS.events)).get(eventKey);
-  if (!eventSheetId) {
+  const event = readEvents(port.readSeasonTab(SEASON_TABS.events)).get(eventKey);
+  if (!event?.eventSheetId) {
     throw new ScriptError(`The current event ${eventKey} isn't in the ${SEASON_TABS.events} tab. Choose Scouting → Create event.`);
   }
-  return { eventKey, eventSheetId };
+  return { eventKey, ...event };
 }
 
 /** Reads the Schedule tab by its header, so an Admin can fill it in or fix it by hand. */
@@ -250,12 +288,12 @@ function rosterFrom(scouts: Scout[], crypto: ScriptCrypto): RosterEntry[] {
 
 /** The Event Bundle for the current event. */
 export function buildEventBundle(port: SpreadsheetPort, crypto: ScriptCrypto): EventBundle {
-  const { eventKey, eventSheetId } = currentEvent(port);
+  const { eventKey, eventSheetId, eventName } = currentEvent(port);
   const schedule = readSchedule(port.readEventTab(eventSheetId, EVENT_TABS.schedule));
   const teams = readTeams(port.readEventTab(eventSheetId, EVENT_TABS.teams), schedule);
   const roster = rosterFrom(readScouts(port.readSeasonTab(SEASON_TABS.scouts)), crypto);
   const coverage = coverageFrom(port.readEventTab(eventSheetId, REPORT_TABS.match));
-  return { eventKey, teams, schedule, roster, coverage };
+  return { eventKey, ...(eventName && { eventName }), teams, schedule, roster, coverage };
 }
 
 /**
@@ -289,6 +327,12 @@ export function eventKeyFrom(typed: string): string {
 
 export function tbaKnowsEvent(eventKey: string, tba: TbaPort): boolean {
   return tba.get(`/event/${eventKey}/simple`) !== null;
+}
+
+/** The Event's name on TBA, or '' when TBA doesn't have the Event. */
+function tbaEventName(eventKey: string, tba: TbaPort): string {
+  const event = tba.get(`/event/${eventKey}/simple`) as { name?: unknown } | null;
+  return typeof event?.name === 'string' ? event.name.trim() : '';
 }
 
 /** TBA team keys such as "frc578". Keys with a letter suffix (B teams at off-season events) give null. */
@@ -350,17 +394,18 @@ function fetchFromTba(eventKey: string, eventSheetId: string, port: SpreadsheetP
 /**
  * "Create event": makes the event's Event Sheet, records it in the Events tab, fetches the schedule and team list,
  * and makes the event current. Running it again for an event that already has an Event Sheet reuses that sheet.
- * Returns a message for the Admin.
+ * The Event's name comes from TBA, or from typedName for an event TBA doesn't have. Returns a message for the Admin.
  */
-export function createEvent(typedKey: string, port: SpreadsheetPort, tba: TbaPort): string {
+export function createEvent(typedKey: string, port: SpreadsheetPort, tba: TbaPort, typedName = ''): string {
   const eventKey = eventKeyFrom(typedKey);
   const events = port.readSeasonTab(SEASON_TABS.events);
-  let eventSheetId = readKeyValueTab(events).get(eventKey);
-  const existed = eventSheetId !== undefined;
-  if (!eventSheetId) {
-    eventSheetId = port.createEventSheet(`Scouting ${eventKey}`);
-    port.writeSeasonTab(SEASON_TABS.events, withKeyValue(events, EVENTS_HEADER, eventKey, eventSheetId));
-  }
+  const saved = readEvents(events).get(eventKey);
+  const eventName = saved?.eventName || tbaEventName(eventKey, tba) || typedName.trim();
+  const sheetName = eventName ? `Scouting ${eventKey} ${eventName}` : `Scouting ${eventKey}`;
+  const existed = saved !== undefined;
+  let eventSheetId = saved?.eventSheetId;
+  if (!eventSheetId) eventSheetId = port.createEventSheet(sheetName);
+  port.writeSeasonTab(SEASON_TABS.events, withEvent(events, eventKey, eventSheetId, eventName));
   const fetched = fetchFromTba(eventKey, eventSheetId, port, tba);
   const settings = port.readSeasonTab(SEASON_TABS.settings);
   port.writeSeasonTab(SEASON_TABS.settings, withKeyValue(settings, SETTINGS_HEADER, CURRENT_EVENT_SETTING, eventKey));
@@ -368,15 +413,23 @@ export function createEvent(typedKey: string, port: SpreadsheetPort, tba: TbaPor
   if (port.readSeasonTab(SEASON_TABS.scouts).length === 0) port.writeSeasonTab(SEASON_TABS.scouts, [SCOUTS_HEADER]);
 
   return [
-    existed ? `${eventKey} already had an Event Sheet, so it was reused.` : `Created the Event Sheet "Scouting ${eventKey}".`,
+    existed ? `${eventKey} already had an Event Sheet, so it was reused.` : `Created the Event Sheet "${sheetName}".`,
     fetched,
     `${eventKey} is now the current event. Devices pick it up the next time they refresh.`,
   ].join('\n\n');
 }
 
-/** "Refresh schedule": fetches the current event's schedule and team list again. Returns a message for the Admin. */
+/**
+ * "Refresh schedule": fetches the current event's schedule and team list again, and its name if the Events tab has
+ * none. Returns a message for the Admin.
+ */
 export function refreshSchedule(port: SpreadsheetPort, tba: TbaPort): string {
-  const { eventKey, eventSheetId } = currentEvent(port);
+  const { eventKey, eventSheetId, eventName } = currentEvent(port);
+  const tbaName = eventName ? '' : tbaEventName(eventKey, tba);
+  if (tbaName) {
+    const events = port.readSeasonTab(SEASON_TABS.events);
+    port.writeSeasonTab(SEASON_TABS.events, withEvent(events, eventKey, eventSheetId, tbaName));
+  }
   return `${eventKey}: ${fetchFromTba(eventKey, eventSheetId, port, tba)}`;
 }
 

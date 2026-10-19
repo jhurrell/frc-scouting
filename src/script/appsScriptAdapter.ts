@@ -9,6 +9,7 @@ import {
   handleRequest,
   refreshSchedule,
   REPORT_TABS,
+  savedEventName,
   ScriptError,
   tbaKnowsEvent,
   type Cell,
@@ -66,13 +67,16 @@ function sheetsPort(): SpreadsheetPort {
 function tbaPort(): TbaPort {
   const key = PropertiesService.getScriptProperties().getProperty('TBA_KEY');
   if (!key) throw new ScriptError('The script has no TBA_KEY property. See docs/apps-script-setup.md.');
+  // Remembered for one menu action, so checking the event and then creating it asks TBA once.
+  const answers = new Map<string, unknown>();
   return {
     get: (path) => {
+      if (answers.has(path)) return answers.get(path);
       const response = UrlFetchApp.fetch(TBA_API + path, { headers: { 'X-TBA-Auth-Key': key }, muteHttpExceptions: true });
       const status = response.getResponseCode();
-      if (status === 404) return null;
-      if (status !== 200) throw new ScriptError(`The Blue Alliance answered ${status} for ${path}.`);
-      return JSON.parse(response.getContentText());
+      if (status !== 200 && status !== 404) throw new ScriptError(`The Blue Alliance answered ${status} for ${path}.`);
+      answers.set(path, status === 404 ? null : JSON.parse(response.getContentText()));
+      return answers.get(path);
     },
   };
 }
@@ -158,10 +162,19 @@ export function menuCreateEvent(): void {
           ui.ButtonSet.YES_NO,
         );
         if (choice !== ui.Button.YES) return null;
+        if (!savedEventName(eventKey, sheetsPort())) {
+          const nameAnswer = ui.prompt(
+            'Create event',
+            'Event name, for example Rochester Rumble (leave blank to show only the event key):',
+            ui.ButtonSet.OK_CANCEL,
+          );
+          if (nameAnswer.getSelectedButton() !== ui.Button.OK) return null;
+          return { eventKey, tba, eventName: nameAnswer.getResponseText() };
+        }
       }
-      return { eventKey, tba };
+      return { eventKey, tba, eventName: '' };
     },
-    ({ eventKey, tba }) => createEvent(eventKey, sheetsPort(), tba),
+    ({ eventKey, tba, eventName }) => createEvent(eventKey, sheetsPort(), tba, eventName),
   );
 }
 

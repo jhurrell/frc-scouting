@@ -18,7 +18,15 @@ A mentor or student lead who sets up the season, the events and the Scouts.
 A strategy lead or drive coach who reads the scouting data to plan matches and alliance selection.
 _Avoid_: Analyst, drive team (as a role name)
 
-## Competition
+## FRC
+
+**Event**:
+One FRC competition that Team 578 scouts, such as a regional, district or off-season event.
+_Avoid_: Competition, tournament
+
+**Event key**:
+The Blue Alliance's identifier for an Event: the year then a short code, such as 2026nyro.
+_Avoid_: Event code, event ID
 
 **Team**:
 An FRC team, identified by its team number.

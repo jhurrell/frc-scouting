@@ -11,6 +11,7 @@ const schedule: ScheduledMatch[] = Array.from({ length: 12 }, (_, m) => ({
 /** Served by the fake Sheet gateway in local development when VITE_SCRIPT_URL isn't set. */
 export const demoEventBundle: EventBundle = {
   eventKey: '2026demo',
+  eventName: 'Demo Regional',
   teams,
   schedule,
   // A made-up Scout, never a student. PIN 0000.

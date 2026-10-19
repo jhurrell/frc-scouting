@@ -50,13 +50,13 @@ Then run `npm run dev`. Without `VITE_SCRIPT_URL`, the dev server uses an in-mem
 Use a past event that TBA has a schedule for, such as `2025nyro`.
 
 1. **Create event:** choose **Scouting → Create event…** and enter the event key. The first time, Google asks for permission to manage spreadsheets, Drive files and external requests. Expect a message with the number of teams and qualification matches. Then check:
-   - The Season Sheet has a `Settings` tab with Current event set to the key, an empty `Scouts` tab, and an `Events` tab with the key and an Event Sheet ID.
-   - A spreadsheet `Scouting <event key>` is in the same folder, with a `Schedule` tab (Match, then Red 1 to Blue 3, qualification matches only) and a `Teams` tab.
+   - The Season Sheet has a `Settings` tab with Current event set to the key, an empty `Scouts` tab, and an `Events` tab with the key, an Event Sheet ID and the event's name from TBA.
+   - A spreadsheet `Scouting <event key> <event name>` is in the same folder, with a `Schedule` tab (Match, then Red 1 to Blue 3, qualification matches only) and a `Teams` tab.
 2. **Create it again:** run **Create event…** with the same key. Expect "already had an Event Sheet, so it was reused", and no second spreadsheet.
 3. **Typo:** run **Create event…** with a key TBA doesn't know, such as `2025nyrx`. Expect a warning; choose **No**, and nothing changes.
 4. **Scouts:** in the new `Scouts` tab, add two made-up test Scouts (never real students in a test sheet you share), for example `t1`, `Test Scout One`, `0123` and `t2`, `Test Scout Two`, `4567`.
 5. **Wrong access code:** on the app's Device setup screen, enter a wrong code. Expect "Wrong access code".
-6. **Right access code:** enter the `ACCESS_CODE` from section 3. Expect the Log in screen, with the event key and both test Scouts.
+6. **Right access code:** enter the `ACCESS_CODE` from section 3. Expect the Log in screen, with "<event name> (<event key>)" and both test Scouts.
 7. **Log in:** choose `Test Scout One` and enter a wrong PIN. Expect "Wrong PIN". Enter `0123`. Expect the home screen, showing "Logged in as Test Scout One" and the number of qualification matches.
 8. **Team filled in:** choose **New Match Report**, enter match 1 and pick a Station. Each Station shows its team number, and the chosen team appears as "from the schedule". Compare it with the Schedule tab.
 9. **Manual entry:** enter a match number past the end of the schedule, such as 200. Expect a note that the match isn't in the schedule, and a team number field.
@@ -85,6 +85,9 @@ Use a past event that TBA has a schedule for, such as `2025nyro`.
 32. **Coverage:** first, as each test Scout, complete a Report on the same match and Station. Then on the Hub, online, choose **Coverage**. Expect "From everyone's Uploads" and a grid of every qualification match by the six Stations, with each Station's team number. The Stations of the Reports Uploaded in earlier steps are green, the shared Station is amber with ×2, and the Report Voided in step 17 isn't counted.
 33. **Void in the Sheet:** in `Match Reports`, tick the Void checkbox of a Report on a green Station. Choose **Refresh** on Coverage. Expect that Station grey, or one fewer on an amber one.
 34. **Coverage offline:** on the phone, turn on airplane mode and choose **Coverage**. Expect "This device only… This device is offline", with only the phone's own Complete, non-Void Match Reports counted.
+35. **Event name on devices:** on Home, Login and Coverage, expect "<event name> (<event key>)". In the `Events` tab, shorten the name, choose **Refresh** in the app, and expect the shorter name.
+36. **Event TBA doesn't have:** run **Create event…** with a made-up key such as `2025scrim` and choose **Yes** at the warning. When it asks for the event name, leave it blank. Expect an `Events` row with no name, a spreadsheet called `Scouting 2025scrim`, and "2025scrim" alone in the app after **Refresh**. Then set Current event back to the real event.
+37. **Name filled in later:** in the `Events` tab, clear the real event's name, then choose **Scouting → Refresh schedule**. Expect TBA's name back in the cell. Change the name to something of your own and run **Refresh schedule** again. Expect your name kept.
 
 ## Updating the script later
 
@@ -103,7 +106,7 @@ The Season Sheet holds every PIN in plain text. Share it only with Admins.
 
 ## Typing a schedule by hand
 
-For an event TBA doesn't cover, such as a scrimmage, run **Create event…** anyway and choose **Yes** at the warning. Then fill in the Event Sheet:
+For an event TBA doesn't cover, such as a scrimmage, run **Create event…** anyway and choose **Yes** at the warning. It then asks for the event's name, which devices show next to the event key; leave it blank to show only the key. Then fill in the Event Sheet:
 
 - **Schedule tab:** one row per match, with the match number under `Match` and team numbers under `Red 1` to `Blue 3`. Leave a cell blank if you don't know the team; Scouts type it in.
 - **Teams tab:** one team number per row under `Team`. Teams in the schedule are added to the list automatically.
@@ -115,3 +118,4 @@ For an event TBA doesn't cover, such as a scrimmage, run **Create event…** any
 - **To Void a Report,** tick its Void checkbox. No Upload ever clears it. Leave the rest of the Report tabs alone. Every Upload rewrites those tabs, which turns formulas in them into plain values and could clash with columns you add.
 - **Do analysis in other tabs** or other spreadsheets that reference the Report tabs.
 - **The Season Sheet's Settings and Events tabs** are rewritten by the menu actions too, so keep formulas out of them.
+- **The event's name** in the `Events` tab can be edited, for example to shorten a long name from TBA. The menu actions only fill in an empty name, never replace one. Devices show the change after their next Refresh.

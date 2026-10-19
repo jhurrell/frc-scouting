@@ -128,6 +128,8 @@ export function countCoverage(reports: Iterable<{ matchNumber: number; station: 
 export interface EventBundle {
   /** The current event. New Reports take this event key. */
   eventKey: string;
+  /** The Event's name, when the Season Sheet has one. Event Bundles downloaded before names were kept have none. */
+  eventName?: string;
   /** Sorted team numbers. */
   teams: number[];
   /** Qualification matches only. */

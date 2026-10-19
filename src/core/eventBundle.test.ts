@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { SheetGatewayError, type EventBundle, type SeasonConfig } from '../shared/contract';
 import { FakeSheetGateway } from '../gateway/fakeSheetGateway';
 import { ScoutingDb } from './db';
-import { createScoutingCore, ScoutingError } from './scoutingCore';
+import { createScoutingCore, eventLabel, ScoutingError } from './scoutingCore';
 import { TEST_SCOUT, testRoster } from './testScouts';
 
 const config: SeasonConfig = {
@@ -93,6 +93,17 @@ describe('the Event Bundle on the device', () => {
     await expect(core.startMatchReport({ matchNumber: 1, station: 'Red 1', teamNumber: 578 })).rejects.toThrow(
       'No Event Bundle',
     );
+  });
+});
+
+describe('naming the Event', () => {
+  it('shows the name with the Event key in brackets', () => {
+    expect(eventLabel({ eventKey: '2026nyro', eventName: 'Finger Lakes Regional' })).toBe('Finger Lakes Regional (2026nyro)');
+  });
+
+  it('shows the Event key alone when there is no name, as in an Event Bundle from before names were kept', () => {
+    expect(eventLabel({ eventKey: '2026nyro' })).toBe('2026nyro');
+    expect(eventLabel({ eventKey: '2026scrim', eventName: '' })).toBe('2026scrim');
   });
 });
 

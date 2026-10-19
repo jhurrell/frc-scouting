@@ -7,6 +7,7 @@ import {
   METADATA_COLUMNS,
   refreshSchedule,
   REPORT_TABS,
+  savedEventName,
   ScriptError,
   tbaKnowsEvent,
   type Cell,
@@ -237,10 +238,10 @@ describe('Admin menu', () => {
   it('creates an event in one step: Event Sheet, Events row, schedule, team list and current event', () => {
     const message = createEvent(' 2026NYRO ', port, tba);
 
-    expect(port.eventSheetNames).toEqual(new Map([['sheet-1', 'Scouting 2026nyro']]));
+    expect(port.eventSheetNames).toEqual(new Map([['sheet-1', 'Scouting 2026nyro Finger Lakes Regional']]));
     expect(port.readSeasonTab('Events')).toEqual([
-      ['Event key', 'Event Sheet ID'],
-      ['2026nyro', 'sheet-1'],
+      ['Event key', 'Event Sheet ID', 'Event name'],
+      ['2026nyro', 'sheet-1', 'Finger Lakes Regional'],
     ]);
     expect(port.readSeasonTab('Settings')).toEqual([
       ['Setting', 'Value'],
@@ -267,13 +268,14 @@ describe('Admin menu', () => {
 
     expect(bundle()).toMatchObject({
       eventKey: '2026nyro',
+      eventName: 'Finger Lakes Regional',
       teams: [174, 191, 340, 578, 1511, 3015],
       schedule: [{ matchNumber: 1, stations: { 'Red 1': 340, 'Blue 3': 1511 } }, { matchNumber: 2 }],
     });
     expect(bundle().schedule[0].stations).not.toHaveProperty('Blue 2');
   });
 
-  it('keeps existing Settings and Events rows, and changes only the current event', () => {
+  it('keeps existing Settings and Events rows, changes only the current event, and adds the Event name header', () => {
     port.seasonTabs.set('Settings', [
       ['Setting', 'Value'],
       ['Current event', '2026old'],
@@ -292,9 +294,9 @@ describe('Admin menu', () => {
       ['Something else', 'kept'],
     ]);
     expect(port.readSeasonTab('Events')).toEqual([
-      ['Event key', 'Event Sheet ID'],
-      ['2026old', 'sheet-old'],
-      ['2026nyro', 'sheet-1'],
+      ['Event key', 'Event Sheet ID', 'Event name'],
+      ['2026old', 'sheet-old', ''],
+      ['2026nyro', 'sheet-1', 'Finger Lakes Regional'],
     ]);
   });
 
@@ -311,6 +313,48 @@ describe('Admin menu', () => {
     expect(port.eventSheets.size).toBe(1);
     expect(port.readSeasonTab('Events')).toHaveLength(2);
     expect(message).toContain('reused');
+  });
+
+  it('keeps columns an Admin added to the Events tab', () => {
+    port.seasonTabs.set('Events', [
+      ['Event key', 'Event Sheet ID', 'Event name', 'Notes'],
+      ['2026old', 'sheet-old', 'Old Regional', 'week 1'],
+    ]);
+
+    createEvent('2026nyro', port, tba);
+
+    expect(port.readSeasonTab('Events')).toEqual([
+      ['Event key', 'Event Sheet ID', 'Event name', 'Notes'],
+      ['2026old', 'sheet-old', 'Old Regional', 'week 1'],
+      ['2026nyro', 'sheet-1', 'Finger Lakes Regional', ''],
+    ]);
+  });
+
+  it('keeps a name an Admin edited when the event is created again', () => {
+    createEvent('2026nyro', port, tba);
+    port.seasonTabs.set('Events', [
+      ['Event key', 'Event Sheet ID', 'Event name'],
+      ['2026nyro', 'sheet-1', 'Finger Lakes'],
+    ]);
+
+    createEvent('2026nyro', port, tba);
+
+    expect(port.readSeasonTab('Events')[1]).toEqual(['2026nyro', 'sheet-1', 'Finger Lakes']);
+  });
+
+  it('fills in an empty name from TBA, for an event created before names were kept', () => {
+    port.seasonTabs.set('Events', [
+      ['Event key', 'Event Sheet ID'],
+      ['2026nyro', 'sheet-old'],
+    ]);
+    port.eventSheets.set('sheet-old', new Map());
+
+    createEvent('2026nyro', port, tba);
+
+    expect(port.readSeasonTab('Events')).toEqual([
+      ['Event key', 'Event Sheet ID', 'Event name'],
+      ['2026nyro', 'sheet-old', 'Finger Lakes Regional'],
+    ]);
   });
 
   it('refuses something that is not an event key', () => {
@@ -333,6 +377,30 @@ describe('Admin menu', () => {
     expect(message).toContain('no qualification schedule yet');
   });
 
+  it('names an event TBA doesn’t have with the name the Admin typed', () => {
+    const message = createEvent('2026scrim', port, tba, ' Rochester Rumble ');
+
+    expect(port.readSeasonTab('Events')[1]).toEqual(['2026scrim', 'sheet-1', 'Rochester Rumble']);
+    expect(port.eventSheetNames.get('sheet-1')).toBe('Scouting 2026scrim Rochester Rumble');
+    expect(message).toContain('Created the Event Sheet "Scouting 2026scrim Rochester Rumble"');
+  });
+
+  it('tells the menu whether an event already has a name, so it asks only when it doesn’t', () => {
+    createEvent('2026scrim', port, tba, 'Rochester Rumble');
+    createEvent('2026other', port, tba);
+
+    expect(savedEventName('2026scrim', port)).toBe('Rochester Rumble');
+    expect(savedEventName('2026other', port)).toBe('');
+    expect(savedEventName('2026none', port)).toBe('');
+  });
+
+  it('leaves the name empty when the Admin types none for an event TBA doesn’t have', () => {
+    createEvent('2026scrim', port, tba, '');
+
+    expect(port.readSeasonTab('Events')[1]).toEqual(['2026scrim', 'sheet-1', '']);
+    expect(port.eventSheetNames.get('sheet-1')).toBe('Scouting 2026scrim');
+  });
+
   it('refreshes the current event’s schedule once TBA publishes it', () => {
     tba.responses.delete('/event/2026nyro/matches/simple');
     createEvent('2026nyro', port, tba);
@@ -343,6 +411,27 @@ describe('Admin menu', () => {
 
     expect(message).toContain('Fetched 1 qualification matches');
     expect(bundle().schedule).toEqual([{ matchNumber: 1, stations: { 'Red 1': 578, 'Blue 1': 340 } }]);
+  });
+
+  it('fills in an empty name from TBA on Refresh schedule, and keeps a name that is there', () => {
+    createEvent('2026nyro', port, tba);
+    port.seasonTabs.set('Events', [
+      ['Event key', 'Event Sheet ID'],
+      ['2026nyro', 'sheet-1'],
+    ]);
+
+    refreshSchedule(port, tba);
+    expect(port.readSeasonTab('Events')).toEqual([
+      ['Event key', 'Event Sheet ID', 'Event name'],
+      ['2026nyro', 'sheet-1', 'Finger Lakes Regional'],
+    ]);
+
+    port.seasonTabs.set('Events', [
+      ['Event key', 'Event Sheet ID', 'Event name'],
+      ['2026nyro', 'sheet-1', 'Finger Lakes'],
+    ]);
+    refreshSchedule(port, tba);
+    expect(port.readSeasonTab('Events')[1]).toEqual(['2026nyro', 'sheet-1', 'Finger Lakes']);
   });
 
   it('never wipes a schedule typed in by hand when TBA has nothing', () => {

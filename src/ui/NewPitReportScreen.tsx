@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import type { ScoutingCore } from '../core/scoutingCore';
+import { eventLabel, type ScoutingCore } from '../core/scoutingCore';
 import type { EventBundle } from '../shared/contract';
 import type { Screen } from './App';
 
@@ -36,7 +36,7 @@ export function NewPitReportScreen({ core, bundle, navigate }: Props) {
       <h1>New Pit Report</h1>
       <form onSubmit={start} className="stack">
         {bundle.teams.length === 0 ? (
-          <p className="muted">The team list for {bundle.eventKey} isn't published yet. Type the team number below.</p>
+          <p className="muted">The team list for {eventLabel(bundle)} isn't published yet. Type the team number below.</p>
         ) : (
           <fieldset className="teams">
             <legend>Team</legend>

@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import type { ScoutingCore } from '../core/scoutingCore';
+import { eventLabel, type ScoutingCore } from '../core/scoutingCore';
 import type { EventBundle } from '../shared/contract';
 import type { Screen } from './App';
 
@@ -47,7 +47,7 @@ export function LoginScreen({ core, bundle, navigate }: Props) {
     <main>
       <h1>Log in</h1>
       <p className="muted">
-        Event {bundle.eventKey} ·{' '}
+        {eventLabel(bundle)} ·{' '}
         <button className="link" disabled={busy} onClick={refresh}>
           Refresh
         </button>{' '}

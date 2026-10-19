@@ -63,7 +63,7 @@ The Season Sheet holds every PIN in plain text. **Share it only with Admins**, a
 
 ### Before each event
 
-1. In the Season Sheet, choose **Scouting → Create event…** and enter the event's TBA key, such as `2026nyro`. This makes an Event Sheet in the same folder, pulls the qualification schedule and team list from The Blue Alliance, and sets it as the current event.
+1. In the Season Sheet, choose **Scouting → Create event…** and enter the event key from The Blue Alliance, such as `2026nyro`. This makes an Event Sheet in the same folder, pulls the event's name, qualification schedule and team list from The Blue Alliance, and sets it as the current event. Devices show the name next to the event key. To shorten a long name, edit it in the Season Sheet's `Events` tab.
 2. On each device, connect to the internet and choose **Refresh**. The device downloads the schedule and roster and can then scout all day with no signal.
 3. If the schedule changes, choose **Scouting → Refresh schedule**, then **Refresh** on each device.
 

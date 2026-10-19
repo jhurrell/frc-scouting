@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { Coverage, CoverageCell, ScoutingCore } from '../core/scoutingCore';
+import { eventLabel, type Coverage, type CoverageCell, type ScoutingCore } from '../core/scoutingCore';
 import { STATIONS, type Station } from '../shared/contract';
 import type { Screen } from './App';
 
@@ -52,7 +52,7 @@ export function CoverageScreen({ core, navigate }: { core: ScoutingCore; navigat
       </button>
       <h1>Coverage</h1>
       <p className="muted">
-        {busy ? 'Getting Coverage…' : coverage ? `Event ${coverage.result.eventKey}` : ''}
+        {busy ? 'Getting Coverage…' : coverage ? eventLabel(coverage.result) : ''}
         {!busy && (
           <>
             {coverage && ' · '}

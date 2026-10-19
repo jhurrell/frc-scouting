@@ -206,16 +206,16 @@ describe('Coverage offline', () => {
     expect(counts(await hub.refreshCoverage())).toEqual({ '2 Red 1': 1 });
   });
 
-  it('counts only the current event’s Reports', async () => {
+  it('counts only the current event’s Reports, and names that event', async () => {
     const lead = await device(LEAD);
     await scout(lead, 1, 'Red 1');
-    gateway.setEventBundle({ ...bundle, eventKey: '2026next' });
+    gateway.setEventBundle({ ...bundle, eventKey: '2026next', eventName: 'Next Regional' });
     await lead.refreshEventBundle();
     gateway.offline = true;
 
     const coverage = await lead.refreshCoverage();
 
-    expect(coverage.eventKey).toBe('2026next');
+    expect(coverage).toMatchObject({ eventKey: '2026next', eventName: 'Next Regional' });
     expect(counts(coverage)).toEqual({});
   });
 });

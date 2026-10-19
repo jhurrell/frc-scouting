@@ -117,6 +117,7 @@ export interface CoverageRow {
 
 export interface Coverage {
   eventKey: string;
+  eventName?: string;
   /**
    * 'everyone': from every Scout's Uploads, in the Event Bundle just downloaded. 'this-device': only the Complete
    * Match Reports on this device, including any received as a Hub, because the Season Sheet couldn't be reached.
@@ -162,6 +163,11 @@ export type ScoutingCore = ReturnType<typeof createScoutingCore>;
 /** The PIN hash the script puts in the roster: lowercase hex SHA-256 of pinHashText(salt, pin). */
 export function hashPin(salt: string, pin: string): string {
   return bytesToHex(sha256(utf8ToBytes(pinHashText(salt, pin))));
+}
+
+/** How the app names an Event: its name with the Event key in brackets, or the Event key alone when it has no name. */
+export function eventLabel({ eventKey, eventName }: { eventKey: string; eventName?: string }): string {
+  return eventName ? `${eventName} (${eventKey})` : eventKey;
 }
 
 /** A random version 4 UUID, made from crypto.getRandomValues, which works on any page. */
@@ -723,7 +729,8 @@ export function createScoutingCore({
         try {
           await uploadInBackground();
           const bundle = await refreshEventBundle();
-          return { eventKey: bundle.eventKey, source: 'everyone', rows: coverageGrid(bundle, bundle.coverage) };
+          const { eventKey, eventName } = bundle;
+          return { eventKey, eventName, source: 'everyone', rows: coverageGrid(bundle, bundle.coverage) };
         } catch (error) {
           reason = error instanceof Error ? error.message : String(error);
         }
@@ -731,7 +738,8 @@ export function createScoutingCore({
       const [bundle, complete] = await Promise.all([getEventBundle(), db.reports.where('status').equals('complete').toArray()]);
       if (!bundle) throw new ScoutingError('No Event Bundle on this device yet');
       const counts = countCoverage(complete.filter((r): r is MatchReport => r.kind === 'match' && r.eventKey === bundle.eventKey));
-      return { eventKey: bundle.eventKey, source: 'this-device', reason, rows: coverageGrid(bundle, counts) };
+      const { eventKey, eventName } = bundle;
+      return { eventKey, eventName, source: 'this-device', reason, rows: coverageGrid(bundle, counts) };
     },
 
     getReport(reportId: string): Promise<Report | undefined> {

@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useState } from 'react';
-import type { ListedReport, ScoutingCore } from '../core/scoutingCore';
+import { eventLabel, type ListedReport, type ScoutingCore } from '../core/scoutingCore';
 import type { Report } from '../shared/contract';
 import type { Screen } from './App';
 
@@ -31,8 +31,10 @@ export function HomeScreen({ core, navigate }: { core: ScoutingCore; navigate: (
     setBusy(true);
     setMessage(null);
     try {
-      const { eventKey, schedule, teams } = await core.refreshEventBundle();
-      setMessage({ text: `Downloaded ${eventKey}: ${teams.length} teams, ${schedule.length} qualification matches.`, error: false });
+      const downloaded = await core.refreshEventBundle();
+      const { schedule, teams } = downloaded;
+      const counts = `${teams.length} teams, ${schedule.length} qualification matches`;
+      setMessage({ text: `Downloaded ${eventLabel(downloaded)}: ${counts}.`, error: false });
     } catch (e) {
       setMessage({ text: e instanceof Error ? e.message : String(e), error: true });
     } finally {
@@ -69,7 +71,7 @@ export function HomeScreen({ core, navigate }: { core: ScoutingCore; navigate: (
       )}
       <p className="muted">
         {bundle
-          ? `Event ${bundle.eventKey} · ${bundle.schedule.length} qualification matches`
+          ? `${eventLabel(bundle)} · ${bundle.schedule.length} qualification matches`
           : 'No Event Bundle on this device yet. Connect to the internet and choose Refresh.'}{' '}
         ·{' '}
         <button className="link" disabled={busy} onClick={refresh}>
