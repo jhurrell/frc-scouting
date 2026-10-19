@@ -23,7 +23,6 @@ In Google Sheets, create a spreadsheet called `Scouting Season (2026)`, ideally 
    - `TBA_KEY`: a read API key from The Blue Alliance. Log in at thebluealliance.com, open **Account**, and add a **Read API Key**.
 
    Keep both out of git and out of chat.
-4. Reload the Season Sheet. A **Scouting** menu appears next to **Help**.
 
 ## 4. Deploy it as a web app
 
@@ -32,12 +31,13 @@ In Google Sheets, create a spreadsheet called `Scouting Season (2026)`, ideally 
    - **Who has access:** Anyone
 2. Choose **Deploy** and authorize it. Google warns that the app isn't verified; choose **Advanced**, then **Go to … (unsafe)**. It is your own script.
 3. Copy the **Web app URL** (it ends in `/exec`).
+4. Reload the Season Sheet. A **Scouting** menu appears next to **Help**.
 
 The web app runs as the account that deployed it, so that account must be able to open every Event Sheet. Run **Create event** from the same account, or share the Season Sheet's folder with it.
 
 ## 5. Point the app at it
 
-Create `.env.local` in the repo root. It is gitignored.
+Create `.env.local` in the repo root. It is gitignored. Set a variable to the URL collected from step 3 above from "Deploy it as a web app".
 
 ```sh
 VITE_SCRIPT_URL=https://script.google.com/macros/s/…/exec
