@@ -12,7 +12,7 @@ This writes one file, `dist-script/Code.js`.
 
 ## 2. Make a test Season Sheet
 
-In Google Sheets, create a spreadsheet called `Scouting Season (test)`, ideally in its own folder. This is the **Season Sheet**. Leave it empty: the script adds the `Settings`, `Scouts` and `Events` tabs, and creates each Event Sheet in the same folder.
+In Google Sheets, create a spreadsheet called `Scouting Season (2026)`, ideally in its own folder. This is the **Season Sheet**. Leave it empty: the script adds the `Settings`, `Scouts` and `Events` tabs, and creates each Event Sheet in the same folder.
 
 ## 3. Install the script
 

@@ -94,3 +94,37 @@ _Avoid_: Schedule file, match.js
 **Coverage**:
 Which Stations in which matches have at least one Match Report.
 _Avoid_: Progress, scouted status
+
+## Alliance Selection
+
+**Rankings**:
+The official order of Teams after the qualification matches, which decides the Alliance Captains.
+_Avoid_: Using "ranking" for the Pick List
+
+**Alliance Selection**:
+The draft after the qualification matches, in which Alliance Captains pick partners to form the playoff Alliances.
+_Avoid_: Draft day, picking
+
+**Alliance Captain**:
+One of the top-ranked Teams, usually eight, who picks partners for their Alliance.
+_Avoid_: Captain team, seed (as a role name)
+
+**Alliance**:
+The Teams that play the playoffs together: an Alliance Captain and the Teams they picked.
+_Avoid_: Alliance team (for a Station), playoff team
+
+**Pick List**:
+Team 578's ordered list of the Teams it would most want as Alliance partners, built by Strategists before Alliance Selection.
+_Avoid_: Ranking, draft board, pick sheet
+
+**Do Not Pick**:
+A Team on the Pick List marked as one Team 578 doesn't want as a partner.
+_Avoid_: Blacklist, DNP
+
+**Picked**:
+A Team that has joined an Alliance during Alliance Selection, so it is no longer available to any other Alliance.
+_Avoid_: Taken, gone, drafted
+
+**Declined**:
+A Team that turned down an Alliance Captain's invitation during Alliance Selection, so no Alliance can pick it afterwards.
+_Avoid_: Refused, rejected
