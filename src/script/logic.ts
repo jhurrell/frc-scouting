@@ -162,6 +162,22 @@ export function savedEventName(eventKey: string, port: SpreadsheetPort): string 
   return readEvents(port.readSeasonTab(SEASON_TABS.events)).get(eventKey)?.eventName ?? '';
 }
 
+/** What a Google Drive file ID looks like. Anything else in an Event Sheet ID cell is left as typed. */
+const DRIVE_ID = /^[A-Za-z0-9_-]+$/;
+
+/**
+ * Makes each Event Sheet ID in the Events tab a link to its Event Sheet that still shows the ID, so reading the tab
+ * back gives the ID. Sheets reads a link back as plain text, so this runs every time the tab is written.
+ */
+function withEventSheetLinks(table: Table): Table {
+  return table.map((row, i) => {
+    const id = String(row[1] ?? '').trim();
+    if (i === 0 || !DRIVE_ID.test(id)) return row;
+    // MemoryPort reads this formula back as its shown text, as Sheets does; keep the two in step.
+    return [row[0], `=HYPERLINK("https://docs.google.com/spreadsheets/d/${id}/edit", "${id}")`, ...row.slice(2)];
+  });
+}
+
 /**
  * Records an Event in the Events tab with its Event Sheet ID. The name goes in only when the row has none, so a name
  * an Admin edited is kept. Header cells an older Events tab lacks are added.
@@ -405,7 +421,7 @@ export function createEvent(typedKey: string, port: SpreadsheetPort, tba: TbaPor
   const existed = saved !== undefined;
   let eventSheetId = saved?.eventSheetId;
   if (!eventSheetId) eventSheetId = port.createEventSheet(sheetName);
-  port.writeSeasonTab(SEASON_TABS.events, withEvent(events, eventKey, eventSheetId, eventName));
+  port.writeSeasonTab(SEASON_TABS.events, withEventSheetLinks(withEvent(events, eventKey, eventSheetId, eventName)));
   const fetched = fetchFromTba(eventKey, eventSheetId, port, tba);
   const settings = port.readSeasonTab(SEASON_TABS.settings);
   port.writeSeasonTab(SEASON_TABS.settings, withKeyValue(settings, SETTINGS_HEADER, CURRENT_EVENT_SETTING, eventKey));
@@ -421,15 +437,13 @@ export function createEvent(typedKey: string, port: SpreadsheetPort, tba: TbaPor
 
 /**
  * "Refresh schedule": fetches the current event's schedule and team list again, and its name if the Events tab has
- * none. Returns a message for the Admin.
+ * none. It rewrites the Events tab, which links every Event Sheet ID. Returns a message for the Admin.
  */
 export function refreshSchedule(port: SpreadsheetPort, tba: TbaPort): string {
   const { eventKey, eventSheetId, eventName } = currentEvent(port);
   const tbaName = eventName ? '' : tbaEventName(eventKey, tba);
-  if (tbaName) {
-    const events = port.readSeasonTab(SEASON_TABS.events);
-    port.writeSeasonTab(SEASON_TABS.events, withEvent(events, eventKey, eventSheetId, tbaName));
-  }
+  const events = port.readSeasonTab(SEASON_TABS.events);
+  port.writeSeasonTab(SEASON_TABS.events, withEventSheetLinks(withEvent(events, eventKey, eventSheetId, tbaName)));
   return `${eventKey}: ${fetchFromTba(eventKey, eventSheetId, port, tba)}`;
 }
 

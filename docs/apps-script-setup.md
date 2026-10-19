@@ -50,7 +50,7 @@ Then run `npm run dev`. Without `VITE_SCRIPT_URL`, the dev server uses an in-mem
 Use a past event that TBA has a schedule for, such as `2025nyro`.
 
 1. **Create event:** choose **Scouting → Create event…** and enter the event key. The first time, Google asks for permission to manage spreadsheets, Drive files and external requests. Expect a message with the number of teams and qualification matches. Then check:
-   - The Season Sheet has a `Settings` tab with Current event set to the key, an empty `Scouts` tab, and an `Events` tab with the key, an Event Sheet ID and the event's name from TBA.
+   - The Season Sheet has a `Settings` tab with Current event set to the key, an empty `Scouts` tab, and an `Events` tab with the key, an Event Sheet ID and the event's name from TBA. Click the Event Sheet ID; it's a link that opens the Event Sheet.
    - A spreadsheet `Scouting <event key> <event name>` is in the same folder, with a `Schedule` tab (Match, then Red 1 to Blue 3, qualification matches only) and a `Teams` tab.
 2. **Create it again:** run **Create event…** with the same key. Expect "already had an Event Sheet, so it was reused", and no second spreadsheet.
 3. **Typo:** run **Create event…** with a key TBA doesn't know, such as `2025nyrx`. Expect a warning; choose **No**, and nothing changes.
@@ -88,6 +88,7 @@ Use a past event that TBA has a schedule for, such as `2025nyro`.
 35. **Event name on devices:** on Home, Login and Coverage, expect "<event name> (<event key>)". In the `Events` tab, shorten the name, choose **Refresh** in the app, and expect the shorter name.
 36. **Event TBA doesn't have:** run **Create event…** with a made-up key such as `2025scrim` and choose **Yes** at the warning. When it asks for the event name, leave it blank. Expect an `Events` row with no name, a spreadsheet called `Scouting 2025scrim`, and "2025scrim" alone in the app after **Refresh**. Then set Current event back to the real event.
 37. **Name filled in later:** in the `Events` tab, clear the real event's name, then choose **Scouting → Refresh schedule**. Expect TBA's name back in the cell. Change the name to something of your own and run **Refresh schedule** again. Expect your name kept.
+38. **Links for older Events:** in the `Events` tab, copy the Event Sheet ID column and paste it back with **Edit → Paste special → Values only**, so no row is a link. Then choose **Scouting → Refresh schedule**. Expect every Event Sheet ID to be a link again, and each to open its Event Sheet.
 
 ## Updating the script later
 
@@ -103,6 +104,10 @@ The Season Sheet's `Scouts` tab has one row per Scout: `Scout ID`, `Name` and `P
 - If a row has a problem, such as a three-digit PIN or a Scout ID used twice, devices can't download the Event Bundle until it's fixed. They keep working with the bundle they already have.
 
 The Season Sheet holds every PIN in plain text. Share it only with Admins.
+
+## Sharing Event Sheets with Strategists
+
+Strategists need the Event Sheets but not the Season Sheet. Each Event Sheet ID in the Season Sheet's `Events` tab is a link to that Event Sheet: open it and share it with the Strategists. Never share the Drive folder with them, because the Season Sheet and its PINs are in it too.
 
 ## Typing a schedule by hand
 

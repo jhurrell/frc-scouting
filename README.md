@@ -59,7 +59,7 @@ Follow [docs/apps-script-setup.md](docs/apps-script-setup.md). In short:
 
 Add one row per Scout to the Season Sheet's `Scouts` tab: `Scout ID` (short, such as `s01`, and never reused), `Name` and a 4-digit `PIN`. To reset a forgotten PIN, change it in the tab. Devices pick up changes on their next **Refresh**.
 
-The Season Sheet holds every PIN in plain text. **Share it only with Admins**, and never copy it into this repo.
+The Season Sheet holds every PIN in plain text. **Share it only with Admins**, and never copy it into this repo. Share each Event Sheet with Strategists on its own (the Event Sheet IDs in the `Events` tab link to them), never the Drive folder, which holds the Season Sheet too.
 
 ### Before each event
 

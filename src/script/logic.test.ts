@@ -315,6 +315,50 @@ describe('Admin menu', () => {
     expect(message).toContain('reused');
   });
 
+  it('makes each Event Sheet ID a link to its Event Sheet, still showing the ID', () => {
+    createEvent('2026nyro', port, tba);
+
+    expect(port.seasonTabs.get('Events')?.[1][1]).toBe(
+      '=HYPERLINK("https://docs.google.com/spreadsheets/d/sheet-1/edit", "sheet-1")',
+    );
+    expect(port.readSeasonTab('Events')[1]).toEqual(['2026nyro', 'sheet-1', 'Finger Lakes Regional']);
+    expect(bundle().eventKey).toBe('2026nyro');
+  });
+
+  it('links every Event on Refresh schedule, including older ones and IDs pasted in by hand', () => {
+    createEvent('2026nyro', port, tba);
+    port.eventSheets.set('sheet-old', new Map());
+    port.seasonTabs.set('Events', [
+      ['Event key', 'Event Sheet ID', 'Event name'],
+      ['2026old', 'sheet-old', 'Old Regional'],
+      ['2026nyro', 'sheet-1', 'Finger Lakes Regional'],
+    ]);
+
+    refreshSchedule(port, tba);
+
+    expect(port.seasonTabs.get('Events')?.slice(1).map((row) => row[1])).toEqual([
+      '=HYPERLINK("https://docs.google.com/spreadsheets/d/sheet-old/edit", "sheet-old")',
+      '=HYPERLINK("https://docs.google.com/spreadsheets/d/sheet-1/edit", "sheet-1")',
+    ]);
+  });
+
+  it('leaves an Event Sheet ID cell that isn’t a Drive ID as typed, so a broken link can’t lose it', () => {
+    createEvent('2026nyro', port, tba);
+    port.seasonTabs.set('Events', [
+      ['Event key', 'Event Sheet ID', 'Event name'],
+      ['2026typo', 'abc"def', ''],
+      ['2026url', 'https://docs.google.com/spreadsheets/d/xyz/edit', ''],
+      ['2026nyro', 'sheet-1', 'Finger Lakes Regional'],
+    ]);
+
+    refreshSchedule(port, tba);
+
+    expect(port.seasonTabs.get('Events')?.slice(1, 3).map((row) => row[1])).toEqual([
+      'abc"def',
+      'https://docs.google.com/spreadsheets/d/xyz/edit',
+    ]);
+  });
+
   it('keeps columns an Admin added to the Events tab', () => {
     port.seasonTabs.set('Events', [
       ['Event key', 'Event Sheet ID', 'Event name', 'Notes'],

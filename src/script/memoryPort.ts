@@ -1,6 +1,6 @@
 /// <reference types="node" />
 import { createHash } from 'node:crypto';
-import type { ScriptCrypto, SpreadsheetPort, Table, TbaPort } from './logic';
+import type { Cell, ScriptCrypto, SpreadsheetPort, Table, TbaPort } from './logic';
 
 /** Season and Event Sheets held in memory, for tests. */
 export class MemoryPort implements SpreadsheetPort {
@@ -10,8 +10,9 @@ export class MemoryPort implements SpreadsheetPort {
   /** Names of the Event Sheets created through createEventSheet, by ID. */
   readonly eventSheetNames = new Map<string, string>();
 
+  /** As Sheets reads it: a HYPERLINK formula reads as the text it shows. */
   readSeasonTab(tab: string): Table {
-    return structuredClone(this.seasonTabs.get(tab) ?? []);
+    return (this.seasonTabs.get(tab) ?? []).map((row) => row.map(shownText));
   }
 
   writeSeasonTab(tab: string, table: Table): void {
@@ -42,6 +43,12 @@ export class MemoryPort implements SpreadsheetPort {
     const [header = [], ...rows] = this.readEventTab(eventSheetId, tab);
     return rows.map((row) => Object.fromEntries(header.map((name, i) => [String(name), row[i]])));
   }
+}
+
+/** The text Sheets shows for a cell: a HYPERLINK formula, written as logic.ts writes it, shows its label. */
+function shownText(cell: Cell): Cell {
+  const link = typeof cell === 'string' ? /^=HYPERLINK\(".*", "(.*)"\)$/.exec(cell) : null;
+  return link ? link[1] : cell;
 }
 
 /** The Blue Alliance's API held in memory, for tests. Paths it doesn't have answer "not found". */
